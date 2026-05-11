@@ -1,0 +1,10 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: VitaliiAndreev/Infrastructure-Common/.github/workflows/ci-powershell.yml@master

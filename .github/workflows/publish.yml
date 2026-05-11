@@ -1,0 +1,21 @@
+name: Publish to PSGallery
+
+# Manual trigger for publishing outside the release flow.
+on:
+  workflow_dispatch:
+    inputs:
+      module-path:
+        description: >
+          Root directory to search for a .psd1 manifest. Defaults to
+          Infrastructure.HyperV.
+        required: false
+        type: string
+        default: 'Infrastructure.HyperV'
+
+jobs:
+  publish:
+    uses: VitaliiAndreev/Infrastructure-Common/.github/workflows/publish.yml@master
+    with:
+      module-path: ${{ inputs.module-path }}
+    secrets:
+      PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
