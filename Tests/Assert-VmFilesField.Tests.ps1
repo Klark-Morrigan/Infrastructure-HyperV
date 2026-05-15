@@ -15,10 +15,12 @@ BeforeAll {
     }
 
     # Real on-disk source for happy-path tests - the validator runs
-    # Test-Path so the path must actually exist.
+    # Test-Path so the path must actually exist. WriteAllBytes is used
+    # instead of Set-Content -Encoding Byte because the Byte encoding
+    # was removed from Set-Content in PowerShell 7.
     function New-ExistingSourcePath {
         $path = Join-Path $TestDrive 'src.bin'
-        Set-Content -Path $path -Value 'unit-test-bytes' -Encoding Byte
+        [System.IO.File]::WriteAllBytes($path, [byte[]](1..16))
         return ($path -replace '\\', '\\')
     }
 }
@@ -76,14 +78,16 @@ Describe 'Assert-VmFilesField - shared shape' {
         It 'throws when an entry is JSON null' {
             $src = New-ExistingSourcePath
             $vm = New-VmWithFilesJson "[null, { `"source`": `"$src`", `"target`": `"/y`" }]"
+            # -ExpectedMessage uses -like, where [0] is a single-char class.
+            # Escape with [[] / []] to match the literal brackets.
             { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*files[0] must be a JSON object*"
+                Should -Throw -ExpectedMessage "*files[[]0[]] must be a JSON object*"
         }
 
         It 'throws when an entry is not an object' {
             $vm = New-VmWithFilesJson '["just-a-string"]'
             { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*files[0] must be a JSON object*"
+                Should -Throw -ExpectedMessage "*files[[]0[]] must be a JSON object*"
         }
 
         It 'throws on unknown sub-field with the default allow-list' {
@@ -173,7 +177,7 @@ Describe 'Assert-VmFilesField - shared shape' {
 ]
 "@
             { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*files[1]*absolute Linux path*"
+                Should -Throw -ExpectedMessage "*files[[]1[]]*absolute Linux path*"
         }
 
         It 'reports VM name as (unknown) when vmName is absent on the VM' {
