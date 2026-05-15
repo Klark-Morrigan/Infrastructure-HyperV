@@ -14,6 +14,12 @@
       - Invoke-WithVmFileServer : runs a script block with a live HTTP file
                                   server bound to the Hyper-V internal switch
       - Add-VmFileServerFile    : stages a host file and returns its VM URL
+      - Copy-VmFiles            : per-entry transport (Add-VmFileServerFile +
+                                  curl -o + chown + chmod under sudo); each
+                                  entry is { Source, Target, Owner?, Mode? }
+      - Assert-VmFilesField     : shared schema validator for a 'files' array
+                                  on a VM definition; consumers extend via
+                                  -AllowedSubFields and -PostEntryValidator
       - Test-VmSshPort          : single-shot TCP probe of an SSH port; the
                                   ICMP-ping replacement for callers that
                                   intend to SSH immediately afterwards
@@ -37,6 +43,8 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Private\Start-VmFileServer.ps1"
 . "$PSScriptRoot\Private\Stop-VmFileServer.ps1"
 . "$PSScriptRoot\Public\Add-VmFileServerFile.ps1"
+. "$PSScriptRoot\Public\Assert-VmFilesField.ps1"
+. "$PSScriptRoot\Public\Copy-VmFiles.ps1"
 . "$PSScriptRoot\Public\Invoke-SshClientCommand.ps1"
 . "$PSScriptRoot\Public\Invoke-WithVmFileServer.ps1"
 . "$PSScriptRoot\Public\New-VmSshClient.ps1"
@@ -51,6 +59,8 @@ $ErrorActionPreference = 'Stop'
 # run-unit-tests action enforces that every Public\*.ps1 file appears in both.
 Export-ModuleMember -Function @(
     'Add-VmFileServerFile',
+    'Assert-VmFilesField',
+    'Copy-VmFiles',
     'Invoke-SshClientCommand',
     'Invoke-WithVmFileServer',
     'New-VmSshClient',
