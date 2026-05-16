@@ -101,6 +101,11 @@ sudo chown "`$owner" "`$target"
 sudo chmod "`$mode" "`$target"
 "@
 
+        # Windows PowerShell here-strings use CRLF; remote bash interprets
+        # the trailing \r as part of the token (e.g. "set -e\r" -> invalid
+        # option "-", "root:root\r" -> invalid group). Normalise to LF.
+        $script = $script -replace "`r`n", "`n"
+
         $result = Invoke-SshClientCommand -SshClient $SshClient -Command $script
         if ($result.ExitStatus -ne 0) {
             throw ("Copy-VmFiles failed (source: $source, target: $target, " +
