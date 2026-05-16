@@ -115,6 +115,23 @@ Describe 'Copy-VmFiles' {
         }
     }
 
+    It 'sends LF-only line endings (no CR) so remote bash does not see \r tokens' {
+        # PowerShell here-strings on Windows produce CRLF. Sending those
+        # straight to bash makes 'set -e\r' an invalid option, 'root:root\r'
+        # an invalid group, etc. The function must normalise to LF.
+        $entries = @(
+            [PSCustomObject]@{ Source = 'C:\src\a'; Target = '/opt/a' }
+        )
+
+        Copy-VmFiles -SshClient $script:FakeSshClient `
+                     -Server    $script:FakeServer `
+                     -Entries   $entries
+
+        Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+            $Command -notmatch "`r" -and $Command -match "`n"
+        }
+    }
+
     It 'accepts a hashtable entry just like a PSCustomObject' {
         # Hashtables expose properties via .PSObject.Properties so the
         # code path is the same - this test guards against an accidental
