@@ -54,6 +54,8 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Private\FileServer\Start-VmFileServer.ps1"
 . "$PSScriptRoot\Private\FileServer\Stop-VmFileServer.ps1"
 
+. "$PSScriptRoot\Private\FileTransfer\Assert-VmFileBulkEntry.ps1"
+. "$PSScriptRoot\Private\FileTransfer\Assert-VmFileSingleEntry.ps1"
 . "$PSScriptRoot\Private\FileTransfer\Resolve-VmFileEntries.ps1"
 
 # Public functions:

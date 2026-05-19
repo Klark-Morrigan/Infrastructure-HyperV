@@ -1,4 +1,26 @@
 BeforeAll {
+    # Stub the two private helpers BEFORE dot-sourcing the dispatcher
+    # so command resolution succeeds without loading the real helpers
+    # or the whole module. Per-form rules are covered in
+    # Assert-VmFileSingleEntry.Tests.ps1 / Assert-VmFileBulkEntry.Tests.ps1;
+    # this file tests orchestration only - which helper is invoked,
+    # with which arguments, and which paths short-circuit before any
+    # helper runs.
+    function Assert-VmFileSingleEntry {
+        param(
+            [string]   $EntryCtx,
+            [object]   $Entry,
+            [string[]] $AllowedSubFields
+        )
+    }
+    function Assert-VmFileBulkEntry {
+        param(
+            [string]   $EntryCtx,
+            [object]   $Entry,
+            [string[]] $AllowedSubFields
+        )
+    }
+
     . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileTransfer\Assert-VmFilesField.ps1"
 
     function New-VmWithFilesJson([string] $FilesJson) {
@@ -13,270 +35,312 @@ BeforeAll {
     function New-VmWithoutFiles {
         return ('{ "vmName": "node-01" }' | ConvertFrom-Json)
     }
-
-    # Real on-disk source for happy-path tests - the validator runs
-    # Test-Path so the path must actually exist. WriteAllBytes is used
-    # instead of Set-Content -Encoding Byte because the Byte encoding
-    # was removed from Set-Content in PowerShell 7.
-    function New-ExistingSourcePath {
-        $path = Join-Path $TestDrive 'src.bin'
-        [System.IO.File]::WriteAllBytes($path, [byte[]](1..16))
-        return ($path -replace '\\', '\\')
-    }
 }
 
-Describe 'Assert-VmFilesField - shared shape' {
+Describe 'Assert-VmFilesField - top-level files array' {
 
-    Context 'optional field absent or empty' {
+    BeforeEach {
+        Mock Assert-VmFileSingleEntry { }
+        Mock Assert-VmFileBulkEntry   { }
+    }
 
-        It 'returns silently when files is absent' {
-            { Assert-VmFilesField -Vm (New-VmWithoutFiles) } | Should -Not -Throw
+    Context 'absent / empty short-circuit before any helper runs' {
+
+        It 'returns silently and invokes no helper when files is absent' {
+            Assert-VmFilesField -Vm (New-VmWithoutFiles)
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
+            Should -Invoke Assert-VmFileBulkEntry   -Times 0
         }
 
-        It 'returns silently when files is an empty array' {
-            { Assert-VmFilesField -Vm (New-VmWithFilesJson '[]') } | Should -Not -Throw
+        It 'returns silently and invokes no helper when files is an empty array' {
+            Assert-VmFilesField -Vm (New-VmWithFilesJson '[]')
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
+            Should -Invoke Assert-VmFileBulkEntry   -Times 0
         }
     }
 
-    Context 'happy path with defaults (source + target only)' {
-
-        It 'accepts a single entry with an existing source and absolute target' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"/opt/lib/x.bin`" }]"
-            { Assert-VmFilesField -Vm $vm } | Should -Not -Throw
-        }
-
-        It 'accepts multiple entries' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson @"
-[
-    { "source": "$src", "target": "/opt/lib/a.bin" },
-    { "source": "$src", "target": "/opt/lib/b.bin" }
-]
-"@
-            { Assert-VmFilesField -Vm $vm } | Should -Not -Throw
-        }
-    }
-
-    Context 'shape rejection' {
+    Context 'array-shape rejection happens before any helper runs' {
 
         It 'throws when files is a JSON object instead of an array' {
-            $vm = New-VmWithFilesJson '{ "source": "x", "target": "/y" }'
-            { Assert-VmFilesField -Vm $vm } |
+            { Assert-VmFilesField -Vm (New-VmWithFilesJson '{ "source": "x", "target": "/y" }') } |
                 Should -Throw -ExpectedMessage "*files must be a JSON array*"
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
         }
 
-        It 'throws when files is JSON null' {
-            # A literal "files": null is distinct from "files absent" and
-            # must fail loudly so the operator does not assume the field
-            # was silently ignored.
-            $vm = New-VmWithFilesJson 'null'
-            { Assert-VmFilesField -Vm $vm } |
+        It 'throws when files is JSON null (distinct from absent)' {
+            # A literal "files": null is distinct from "files absent"
+            # and must fail loudly so the operator does not assume the
+            # field was silently ignored.
+            { Assert-VmFilesField -Vm (New-VmWithFilesJson 'null') } |
                 Should -Throw -ExpectedMessage "*files must be a JSON array*"
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
         }
 
         It 'throws when an entry is JSON null' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[null, { `"source`": `"$src`", `"target`": `"/y`" }]"
-            # -ExpectedMessage uses -like, where [0] is a single-char class.
-            # Escape with [[] / []] to match the literal brackets.
-            { Assert-VmFilesField -Vm $vm } |
+            { Assert-VmFilesField -Vm (New-VmWithFilesJson '[null]') } |
                 Should -Throw -ExpectedMessage "*files[[]0[]] must be a JSON object*"
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
         }
 
-        It 'throws when an entry is not an object' {
-            $vm = New-VmWithFilesJson '["just-a-string"]'
-            { Assert-VmFilesField -Vm $vm } |
+        It 'throws when an entry is a string' {
+            { Assert-VmFilesField -Vm (New-VmWithFilesJson '["just-a-string"]') } |
                 Should -Throw -ExpectedMessage "*files[[]0[]] must be a JSON object*"
-        }
-
-        It 'throws on unknown sub-field with the default allow-list' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"src`": `"$src`", `"target`": `"/y`" }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*unknown sub-field 'src'*"
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
         }
     }
 
-    Context 'source rules' {
+    Context 'EntryCtx string built by the dispatcher' {
 
-        It 'throws when source is missing' {
-            $vm = New-VmWithFilesJson '[{ "target": "/y" }]'
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*missing required sub-field 'source'*"
-        }
-
-        It 'throws when source is a JSON number instead of a string' {
-            $vm = New-VmWithFilesJson '[{ "source": 42, "target": "/y" }]'
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*source must be a non-empty string*"
-        }
-
-        It 'throws when source is a whitespace-only string' {
-            $vm = New-VmWithFilesJson '[{ "source": "   ", "target": "/y" }]'
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*source must be a non-empty string*"
-        }
-
-        It 'throws when source path does not exist on the host' {
-            $vm = New-VmWithFilesJson `
-                '[{ "source": "C:\\does-not-exist-xyz\\f.bin", "target": "/y" }]'
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*source path does not exist*"
-        }
-    }
-
-    Context 'target rules' {
-
-        It 'throws when target is missing' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`" }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*missing required sub-field 'target'*"
-        }
-
-        It 'throws when target is a JSON number instead of a string' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": 42 }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*target must be a non-empty string*"
-        }
-
-        It 'throws when target is a whitespace-only string' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"   `" }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*target must be a non-empty string*"
-        }
-
-        It 'throws when target is a relative path' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"opt/x`" }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*absolute Linux path*"
-        }
-
-        It 'throws when target is a Windows-style path' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"C:\\opt\\x`" }]"
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*absolute Linux path*"
-        }
-    }
-
-    Context 'error context' {
-
-        It 'reports the correct index when the second entry fails' {
-            # Guards against an off-by-one in the index counter that
-            # otherwise would silently report all failures as files[0].
-            $src = New-ExistingSourcePath
+        It 'passes a per-entry index inside the EntryCtx prefix' {
+            # Pins the off-by-one guard: the second entry must report
+            # files[1], not files[0].
             $vm = New-VmWithFilesJson @"
 [
-    { "source": "$src", "target": "/a" },
-    { "source": "$src", "target": "relative-bad" }
+    { "source": "x", "target": "/a" },
+    { "source": "y", "target": "/b" }
 ]
 "@
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*files[[]1[]]*absolute Linux path*"
+            Assert-VmFilesField -Vm $vm
+
+            Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+                $EntryCtx -eq "VM 'node-01': files[0]"
+            }
+            Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+                $EntryCtx -eq "VM 'node-01': files[1]"
+            }
         }
 
-        It 'reports VM name as (unknown) when vmName is absent on the VM' {
-            $src = New-ExistingSourcePath
+        It "uses '(unknown)' in EntryCtx when vmName is absent" {
             # Bypass New-VmWithFilesJson because it always injects vmName.
-            $vm = ("{ `"files`": [{ `"source`": `"$src`", `"target`": `"bad`" }] }" |
-                ConvertFrom-Json)
-            { Assert-VmFilesField -Vm $vm } |
-                Should -Throw -ExpectedMessage "*VM '(unknown)'*"
+            $vm = ('{ "files": [{ "source": "x", "target": "/a" }] }' | ConvertFrom-Json)
+            Assert-VmFilesField -Vm $vm
+
+            Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+                $EntryCtx -like "*VM '(unknown)'*"
+            }
         }
     }
 }
 
-Describe 'Assert-VmFilesField - consumer extensions' {
+Describe 'Assert-VmFilesField - dispatch with -AllowBulkEntries off (default)' {
 
-    Context 'custom AllowedSubFields' {
+    BeforeEach {
+        Mock Assert-VmFileSingleEntry { }
+        Mock Assert-VmFileBulkEntry   { }
+    }
 
-        It 'accepts an extra field that the consumer added to the allow-list' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"/y`", `"owner`": `"app`" }]"
-            { Assert-VmFilesField -Vm $vm `
-                -AllowedSubFields @('source','target','owner') } |
-                Should -Not -Throw
-        }
+    It 'routes every entry to the single-form helper' {
+        $vm = New-VmWithFilesJson @"
+[
+    { "source": "x", "target": "/a" },
+    { "source": "y", "target": "/b" }
+]
+"@
+        Assert-VmFilesField -Vm $vm
 
-        It 'still rejects fields outside the consumer-supplied allow-list' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"/y`", `"hax`": `"x`" }]"
-            { Assert-VmFilesField -Vm $vm `
-                -AllowedSubFields @('source','target','owner') } |
-                Should -Throw -ExpectedMessage "*unknown sub-field 'hax'*"
+        Should -Invoke Assert-VmFileSingleEntry -Times 2 -Exactly
+        Should -Invoke Assert-VmFileBulkEntry   -Times 0
+    }
+
+    It 'forwards the default AllowedSubFields when none is supplied' {
+        Assert-VmFilesField -Vm (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]')
+
+        Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+            ($AllowedSubFields -join ',') -eq 'source,target'
         }
     }
 
-    Context 'PostEntryValidator' {
+    It 'forwards a consumer-supplied AllowedSubFields verbatim' {
+        Assert-VmFilesField `
+            -Vm               (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]') `
+            -AllowedSubFields @('source','target','owner')
 
-        It 'is invoked once per entry with the supplied context' {
-            $src = New-ExistingSourcePath
+        Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+            ($AllowedSubFields -join ',') -eq 'source,target,owner'
+        }
+    }
+
+    It 'propagates a helper throw unchanged' {
+        # The dispatcher must not wrap or swallow helper errors:
+        # consumers rely on the helper's message text for diagnostics.
+        Mock Assert-VmFileSingleEntry { throw 'boom-from-helper' }
+
+        { Assert-VmFilesField -Vm (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]') } |
+            Should -Throw -ExpectedMessage "*boom-from-helper*"
+    }
+}
+
+Describe 'Assert-VmFilesField - dispatch with -AllowBulkEntries on' {
+
+    BeforeEach {
+        Mock Assert-VmFileSingleEntry { }
+        Mock Assert-VmFileBulkEntry   { }
+    }
+
+    Context 'form discrimination by source vs pattern' {
+
+        It "routes a 'source'-only entry to the single helper" {
+            Assert-VmFilesField -AllowBulkEntries `
+                -Vm (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]')
+
+            Should -Invoke Assert-VmFileSingleEntry -Times 1
+            Should -Invoke Assert-VmFileBulkEntry   -Times 0
+        }
+
+        It "routes a 'pattern'-only entry to the bulk helper" {
+            Assert-VmFilesField -AllowBulkEntries `
+                -Vm (New-VmWithFilesJson '[{ "pattern": "x", "targetDir": "/a" }]')
+
+            Should -Invoke Assert-VmFileBulkEntry   -Times 1
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
+        }
+
+        It 'routes a mixed array per-entry' {
             $vm = New-VmWithFilesJson @"
 [
-    { "source": "$src", "target": "/a", "owner": "app1" },
-    { "source": "$src", "target": "/b", "owner": "app2" }
+    { "source": "x", "target": "/a" },
+    { "pattern": "y", "targetDir": "/b" }
 ]
 "@
-            $script:_seenOwners = @()
-            $script:_seenCtx    = $null
+            Assert-VmFilesField -Vm $vm -AllowBulkEntries
 
-            Assert-VmFilesField `
-                -Vm                        $vm `
-                -AllowedSubFields          @('source','target','owner') `
-                -PostEntryValidator        {
-                    param($entry, $context)
-                    $script:_seenOwners += $entry.owner
-                    $script:_seenCtx     = $context
-                } `
-                -PostEntryValidatorContext @{ Pass = 'ok' }
+            Should -Invoke Assert-VmFileSingleEntry -Times 1
+            Should -Invoke Assert-VmFileBulkEntry   -Times 1
+        }
+    }
 
-            $script:_seenOwners | Should -Be @('app1', 'app2')
-            $script:_seenCtx.Pass | Should -Be 'ok'
+    Context 'discriminator rejection happens before any helper runs' {
+
+        It 'throws on an entry with both source and pattern' {
+            { Assert-VmFilesField -AllowBulkEntries `
+                -Vm (New-VmWithFilesJson @"
+[{ "source": "x", "target": "/a", "pattern": "y", "targetDir": "/b" }]
+"@) } |
+                Should -Throw -ExpectedMessage "*both 'source' and 'pattern'*"
+
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
+            Should -Invoke Assert-VmFileBulkEntry   -Times 0
         }
 
-        It 'lets the validator throw to enforce a consumer-specific rule' {
-            $src = New-ExistingSourcePath
-            $vm = New-VmWithFilesJson "[{ `"source`": `"$src`", `"target`": `"/a`", `"owner`": `"ghost`" }]"
+        It 'throws on an entry with neither source nor pattern' {
+            { Assert-VmFilesField -AllowBulkEntries `
+                -Vm (New-VmWithFilesJson '[{ "target": "/a" }]') } |
+                Should -Throw -ExpectedMessage "*expected 'source'*or 'pattern'*"
 
-            {
-                Assert-VmFilesField `
-                    -Vm                        $vm `
-                    -AllowedSubFields          @('source','target','owner') `
-                    -PostEntryValidator        {
-                        param($entry, $context)
-                        if ($entry.owner -notin $context.KnownUsers) {
-                            throw "owner '$($entry.owner)' is not a known user."
-                        }
-                    } `
-                    -PostEntryValidatorContext @{ KnownUsers = @('appuser') }
-            } | Should -Throw -ExpectedMessage "*owner 'ghost' is not a known user*"
+            Should -Invoke Assert-VmFileSingleEntry -Times 0
+            Should -Invoke Assert-VmFileBulkEntry   -Times 0
+        }
+    }
+
+    Context 'AllowedSubFields routing' {
+
+        It 'passes the fixed bulk allow-list to the bulk helper' {
+            # The bulk form's sub-field set IS the contract with
+            # Copy-VmFilesByPattern, not a per-consumer concern, so the
+            # dispatcher must not forward consumer AllowedSubFields to
+            # the bulk helper.
+            Assert-VmFilesField -AllowBulkEntries `
+                -Vm               (New-VmWithFilesJson '[{ "pattern": "x", "targetDir": "/a" }]') `
+                -AllowedSubFields @('source','target','owner')
+
+            Should -Invoke Assert-VmFileBulkEntry -Times 1 -ParameterFilter {
+                ($AllowedSubFields -join ',') -eq 'pattern,targetDir,recurse,preserveRelativePath'
+            }
         }
 
-        It 'is not invoked when files is absent' {
-            $script:_called = $false
-            Assert-VmFilesField `
-                -Vm                 (New-VmWithoutFiles) `
-                -PostEntryValidator { param($e, $c) $script:_called = $true }
-            $script:_called | Should -BeFalse
-        }
+        It 'still forwards consumer AllowedSubFields to the single helper' {
+            Assert-VmFilesField -AllowBulkEntries `
+                -Vm               (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]') `
+                -AllowedSubFields @('source','target','owner')
 
-        It 'is not invoked when a shared check fails before reaching it' {
-            # Documented contract: the hook runs only after the shared
-            # source/target rules have passed, so a hook author can rely
-            # on those fields being well-formed.
-            $vm = New-VmWithFilesJson '[{ "source": "missing.bin", "target": "/a" }]'
-            $script:_called = $false
-            {
-                Assert-VmFilesField `
-                    -Vm                 $vm `
-                    -PostEntryValidator { param($e, $c) $script:_called = $true }
-            } | Should -Throw
-            $script:_called | Should -BeFalse
+            Should -Invoke Assert-VmFileSingleEntry -Times 1 -ParameterFilter {
+                ($AllowedSubFields -join ',') -eq 'source,target,owner'
+            }
         }
+    }
+}
+
+Describe 'Assert-VmFilesField - PostEntryValidator orchestration' {
+
+    BeforeEach {
+        Mock Assert-VmFileSingleEntry { }
+        Mock Assert-VmFileBulkEntry   { }
+    }
+
+    It 'is invoked once per entry with the supplied context' {
+        $vm = New-VmWithFilesJson @"
+[
+    { "source": "x", "target": "/a" },
+    { "source": "y", "target": "/b" }
+]
+"@
+        $script:_seenTargets = @()
+        $script:_seenCtx     = $null
+
+        Assert-VmFilesField `
+            -Vm                        $vm `
+            -PostEntryValidator        {
+                param($entry, $context)
+                $script:_seenTargets += $entry.target
+                $script:_seenCtx      = $context
+            } `
+            -PostEntryValidatorContext @{ Tag = 'ok' }
+
+        $script:_seenTargets | Should -Be @('/a', '/b')
+        $script:_seenCtx.Tag | Should -Be 'ok'
+    }
+
+    It 'lets the validator throw to enforce a consumer-specific rule' {
+        { Assert-VmFilesField `
+            -Vm                 (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]') `
+            -PostEntryValidator { param($e, $c) throw "rule-violated: $($e.target)" } } |
+            Should -Throw -ExpectedMessage "*rule-violated: /a*"
+    }
+
+    It 'is not invoked when files is absent' {
+        $script:_called = $false
+        Assert-VmFilesField `
+            -Vm                 (New-VmWithoutFiles) `
+            -PostEntryValidator { param($e, $c) $script:_called = $true }
+
+        $script:_called | Should -BeFalse
+    }
+
+    It 'is not invoked when the matched form helper throws' {
+        # Documented contract: the hook runs only after the shared
+        # shape checks for the matched form pass.
+        Mock Assert-VmFileSingleEntry { throw 'helper-rejection' }
+        $script:_called = $false
+
+        { Assert-VmFilesField `
+            -Vm                 (New-VmWithFilesJson '[{ "source": "x", "target": "/a" }]') `
+            -PostEntryValidator { param($e, $c) $script:_called = $true } } |
+            Should -Throw
+
+        $script:_called | Should -BeFalse
+    }
+
+    It 'is invoked after the bulk helper too, for bulk entries' {
+        # Confirms the contract is uniform across forms - the hook
+        # author should not have to care whether an entry was single
+        # or bulk.
+        $script:_called = $false
+        Assert-VmFilesField -AllowBulkEntries `
+            -Vm                 (New-VmWithFilesJson '[{ "pattern": "x", "targetDir": "/a" }]') `
+            -PostEntryValidator { param($e, $c) $script:_called = $true }
+
+        $script:_called | Should -BeTrue
+    }
+
+    It 'is not invoked when the discriminator rejects (both source and pattern)' {
+        $script:_called = $false
+        { Assert-VmFilesField -AllowBulkEntries `
+            -Vm (New-VmWithFilesJson @"
+[{ "source": "x", "target": "/a", "pattern": "y", "targetDir": "/b" }]
+"@) `
+            -PostEntryValidator { param($e, $c) $script:_called = $true } } |
+            Should -Throw
+
+        $script:_called | Should -BeFalse
     }
 }

@@ -8,29 +8,44 @@
       - When present, must be a JSON array (PSCustomObject or string
         is rejected).
       - Each entry must be a JSON object.
-      - Each entry may only contain sub-fields listed in
-        -AllowedSubFields. Unknown sub-fields throw - catches typos
-        like 'src' or 'dest'.
-      - 'source' is required, non-empty string, and must exist on the
-        host at validation time. Existence is checked here, not at
-        copy time, so an operator typo fails fast before any VM work
-        begins.
-      - 'target' is required, non-empty string, and must be an
-        absolute Linux path (starts with '/'). Windows-style and
-        relative targets are rejected.
+
+    Two entry forms are supported. The bulk form is gated behind
+    -AllowBulkEntries so existing consumers keep their stricter
+    single-form contract by default.
+
+    Single form (always allowed) - see Assert-VmFileSingleEntry:
+        { source, target [, ...consumer fields] }
+
+    Bulk form (enabled by -AllowBulkEntries; targets
+    Copy-VmFilesByPattern) - see Assert-VmFileBulkEntry:
+        { pattern, targetDir [, recurse] [, preserveRelativePath] }
+
+    Discrimination between the two forms is by the presence of
+    'source' vs 'pattern'. An entry containing both is ambiguous and
+    rejected; an entry containing neither is rejected with a message
+    that names both options.
 
     Additional per-entry rules can be supplied via -PostEntryValidator:
     a scriptblock that receives ($entry, $context) and throws on any
-    violation.
+    violation. It runs after the shared shape checks for whichever
+    form matched.
 
 .PARAMETER Vm
     The parsed VM definition object (the same object the rest of
     the schema sees).
 
 .PARAMETER AllowedSubFields
-    Strict allow-list for sub-fields on each entry. Defaults to
-    @('source', 'target'). Pass a wider list when the schema is
-    being extended (e.g. @('source', 'target', 'owner')).
+    Strict allow-list for sub-fields on each single-form entry.
+    Defaults to @('source', 'target'). Pass a wider list when the
+    schema is being extended (e.g. @('source', 'target', 'owner')).
+    Does not affect bulk-form entries: those always use the fixed
+    bulk allow-list owned by this function.
+
+.PARAMETER AllowBulkEntries
+    Opt-in switch that enables the bulk entry form. Off by default
+    so every existing caller keeps behaving exactly as before -
+    this is the backward-compatibility guarantee for consumers
+    that have not migrated their schemas.
 
 .PARAMETER PostEntryValidator
     Optional scriptblock invoked once per entry after all shared
@@ -43,7 +58,7 @@
     schema.
 
 .EXAMPLE
-    # Default shape, no extras.
+    # Default shape, single form only.
     Assert-VmFilesField -Vm $vm
 
 .EXAMPLE
@@ -62,6 +77,10 @@
             }
         } `
         -PostEntryValidatorContext $context
+
+.EXAMPLE
+    # Mixed single + bulk entries (e.g. Vm-Provisioner schema).
+    Assert-VmFilesField -Vm $vm -AllowBulkEntries
 #>
 function Assert-VmFilesField {
     [CmdletBinding()]
@@ -73,11 +92,19 @@ function Assert-VmFilesField {
         [string[]] $AllowedSubFields = @('source', 'target'),
 
         [Parameter()]
+        [switch] $AllowBulkEntries,
+
+        [Parameter()]
         [scriptblock] $PostEntryValidator,
 
         [Parameter()]
         [object] $PostEntryValidatorContext
     )
+
+    # Fixed bulk allow-list. Not exposed via a parameter: the bulk
+    # form's sub-field set IS the contract with Copy-VmFilesByPattern,
+    # not a per-consumer concern.
+    $bulkAllowedSubFields = @('pattern', 'targetDir', 'recurse', 'preserveRelativePath')
 
     if (-not $Vm.PSObject.Properties['files']) {
         return
@@ -93,9 +120,6 @@ function Assert-VmFilesField {
         throw "$ctx must be a JSON array of file entries."
     }
 
-    # 'source' and 'target' are always required and never overridable
-    # by the AllowedSubFields parameter - those two fields ARE the
-    # contract.
     $i = 0
     foreach ($entry in $files) {
         $entryCtx = "$ctx[$i]"
@@ -106,35 +130,44 @@ function Assert-VmFilesField {
             throw "$entryCtx must be a JSON object."
         }
 
-        foreach ($prop in $entry.PSObject.Properties) {
-            if ($prop.Name -notin $AllowedSubFields) {
-                throw "$entryCtx has unknown sub-field '$($prop.Name)'. Allowed sub-fields: $($AllowedSubFields -join ', ')."
+        if ($AllowBulkEntries) {
+            # Discriminate by presence of 'source' vs 'pattern'. Done
+            # before the per-form sub-field check so an ambiguous or
+            # missing-discriminator entry produces an error that names
+            # the intended form, instead of an 'unknown sub-field
+            # pattern' that hides the real choice.
+            $hasSource  = [bool] $entry.PSObject.Properties['source']
+            $hasPattern = [bool] $entry.PSObject.Properties['pattern']
+
+            if ($hasSource -and $hasPattern) {
+                throw "$entryCtx has both 'source' and 'pattern'; only one is allowed (single vs bulk form)."
+            }
+            if (-not $hasSource -and -not $hasPattern) {
+                throw "$entryCtx is missing required sub-field; expected 'source' (single form) or 'pattern' (bulk form)."
+            }
+
+            if ($hasPattern) {
+                Assert-VmFileBulkEntry `
+                    -EntryCtx         $entryCtx `
+                    -Entry            $entry `
+                    -AllowedSubFields $bulkAllowedSubFields
+            }
+            else {
+                Assert-VmFileSingleEntry `
+                    -EntryCtx         $entryCtx `
+                    -Entry            $entry `
+                    -AllowedSubFields $AllowedSubFields
             }
         }
-
-        if (-not $entry.PSObject.Properties['source']) {
-            throw "$entryCtx is missing required sub-field 'source'."
-        }
-        if ($entry.source -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.source)) {
-            throw "$entryCtx.source must be a non-empty string (host path)."
-        }
-        if (-not (Test-Path -LiteralPath $entry.source)) {
-            throw "$entryCtx.source path does not exist on the host: '$($entry.source)'."
-        }
-
-        if (-not $entry.PSObject.Properties['target']) {
-            throw "$entryCtx is missing required sub-field 'target'."
-        }
-        if ($entry.target -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.target)) {
-            throw "$entryCtx.target must be a non-empty string (absolute Linux path)."
-        }
-        if ($entry.target -notmatch '^/') {
-            throw "$entryCtx.target must be an absolute Linux path starting with '/' (got '$($entry.target)')."
+        else {
+            Assert-VmFileSingleEntry `
+                -EntryCtx         $entryCtx `
+                -Entry            $entry `
+                -AllowedSubFields $AllowedSubFields
         }
 
         # Called after the shared checks pass so the validator can
-        # assume source / target are already valid and only reason
-        # about the fields the caller introduced.
+        # assume the entry is well-formed for its matched form.
         if ($null -ne $PostEntryValidator) {
             & $PostEntryValidator $entry $PostEntryValidatorContext
         }
