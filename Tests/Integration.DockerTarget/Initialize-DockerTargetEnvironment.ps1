@@ -101,9 +101,20 @@ Invoke-ContainerCommand "useradd --system --no-create-home --shell /usr/sbin/nol
 # 3. Configure sudoers
 #    Copy-VmFiles invokes exactly four binaries under sudo per entry. We
 #    grant NOPASSWD on those four paths only, mirroring the precise-grant
-#    style used by the other DockerTarget suites (so an accidental new
-#    sudo call would be caught instead of silently masked).
-#    !requiretty allows sudo over non-interactive SSH.
+#    style used by Infrastructure-GitHubRunners' DockerTarget suite (so an
+#    accidental new sudo call here would surface as a CI failure instead
+#    of being silently masked by a blanket allow).
+#
+#    File delivery: a host-side temp file plus 'docker cp', not a piped
+#    stdin into 'cat > file'. The pipe path runs the sudoers content
+#    through PowerShell's stdout encoder + Docker's stdin pump, which is
+#    one too many opaque hops to defend against on a CI runner where
+#    we cannot interactively poke the container; docker cp moves the
+#    bytes verbatim. We also normalise CRLF -> LF in case this script
+#    runs from a Windows checkout where the here-string carries CRLF.
+#
+#    !requiretty allows sudo over non-interactive SSH (SSH.NET does not
+#    request a pty).
 # -----------------------------------------------------------------------
 
 Write-Step 3 'configuring sudoers'
@@ -115,10 +126,54 @@ ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/curl
 ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/chown
 ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/chmod
 Defaults:${Script:DeployUser} !requiretty
-"@
+"@ -replace "`r`n", "`n"
 
-$sudoersContent | docker exec -i $Script:ContainerName `
-    bash -c "cat > $sudoersPath && chmod 0440 $sudoersPath"
+$sudoersTempFile = Join-Path ([System.IO.Path]::GetTempPath()) `
+    "infra-t-sudoers-$(New-Guid)"
+# WriteAllText with explicit UTF8-no-BOM. Set-Content on Windows
+# PowerShell defaults to UTF-16 LE in some configurations; sudo would
+# silently reject a file it cannot parse as ASCII.
+[System.IO.File]::WriteAllText(
+    $sudoersTempFile, $sudoersContent,
+    [System.Text.UTF8Encoding]::new($false))
+
+try {
+    docker cp $sudoersTempFile "${Script:ContainerName}:${sudoersPath}" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker cp of sudoers file failed (exit $LASTEXITCODE)."
+    }
+}
+finally {
+    Remove-Item -LiteralPath $sudoersTempFile -Force -ErrorAction SilentlyContinue
+}
+
+# Owner must be root:root and mode 0440/0400 for sudo to honour the
+# file. docker cp preserves the host file's mode (probably 0644) which
+# sudo rejects with "unsafe mode" - and silently ignores the rule, which
+# is what was making the 'a password is required' error so opaque.
+Invoke-ContainerCommand "chown root:root '$sudoersPath' && chmod 0440 '$sudoersPath'"
+
+# Validate the file syntax and that the resulting rule actually grants
+# the deploy user a passwordless mkdir. Failing here gives a clear,
+# actionable error - vs failing 60 seconds later inside Copy-VmFiles
+# with a generic 'a password is required' from sudo.
+$visudoCheck = docker exec $Script:ContainerName visudo -cf $sudoersPath 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw ("Sudoers file failed syntax check:`n" +
+           ($visudoCheck -join "`n"))
+}
+
+$sudoProbe = docker exec --user $Script:DeployUser $Script:ContainerName `
+    sudo -n /usr/bin/mkdir -p /tmp/sudoers-probe 2>&1
+if ($LASTEXITCODE -ne 0) {
+    # Surface the actual sudoers content + sudo's complaint together so
+    # a CI-only mismatch (encoding, path, etc.) is debuggable from the
+    # log alone without re-running.
+    $actual = docker exec $Script:ContainerName cat $sudoersPath 2>&1
+    throw ("Sudoers NOPASSWD probe failed for '$Script:DeployUser'.`n" +
+           "sudo said: $($sudoProbe -join ' ')`n" +
+           "File contents on container:`n$($actual -join "`n")")
+}
 
 # -----------------------------------------------------------------------
 # 4. Install host-side modules
