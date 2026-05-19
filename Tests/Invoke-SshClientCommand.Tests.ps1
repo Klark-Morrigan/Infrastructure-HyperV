@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Invoke-SshClientCommand.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Ssh\Invoke-SshClientCommand.ps1"
 
     # Replace the SSH.NET load guard with a no-op so tests can run on hosts
     # without Posh-SSH installed. Assert-SshNetLoaded itself is covered by

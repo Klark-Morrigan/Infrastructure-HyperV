@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Assert-VmFilesField.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileTransfer\Assert-VmFilesField.ps1"
 
     function New-VmWithFilesJson([string] $FilesJson) {
         $json = if ($null -eq $FilesJson) {

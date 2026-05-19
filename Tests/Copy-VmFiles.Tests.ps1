@@ -5,7 +5,7 @@ BeforeAll {
     function Add-VmFileServerFile    { param($Server, $LocalPath) }
     function Invoke-SshClientCommand { param($SshClient, $Command) }
 
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Copy-VmFiles.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileTransfer\Copy-VmFiles.ps1"
 
     $script:FakeSshClient = [PSCustomObject]@{ }
     $script:FakeServer    = [PSCustomObject]@{ BaseUrl = 'http://192.168.1.1:8745' }

@@ -1,7 +1,7 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Get-VmSwitchHostIp.ps1"
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Start-VmFileServer.ps1"
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Stop-VmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Get-VmSwitchHostIp.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Start-VmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Stop-VmFileServer.ps1"
 }
 
 # Integration tests: these spin up a real HttpListener and require elevated

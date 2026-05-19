@@ -1,6 +1,6 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Test-VmSshPort.ps1"
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Wait-VmSshReady.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Ssh\Test-VmSshPort.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Ssh\Wait-VmSshReady.ps1"
 }
 
 Describe 'Wait-VmSshReady' {

@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Test-VmSshPort.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Ssh\Test-VmSshPort.ps1"
 }
 
 Describe 'Test-VmSshPort' {

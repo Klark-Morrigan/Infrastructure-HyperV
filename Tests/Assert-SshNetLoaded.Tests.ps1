@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Assert-SshNetLoaded.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Ssh\Assert-SshNetLoaded.ps1"
 }
 
 Describe 'Assert-SshNetLoaded' {

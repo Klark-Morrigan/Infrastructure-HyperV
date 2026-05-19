@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Add-VmFileServerFile.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileServer\Add-VmFileServerFile.ps1"
 
     # Create a real temp staging directory so Copy-Item can operate normally.
     $script:stagingDir = Join-Path ([System.IO.Path]::GetTempPath()) "AddVmFileServerFile-Tests-$(New-Guid)"

@@ -1,7 +1,7 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Start-VmFileServer.ps1"
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Stop-VmFileServer.ps1"
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Invoke-WithVmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Start-VmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Stop-VmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileServer\Invoke-WithVmFileServer.ps1"
 
     $script:fakeHandle = [PSCustomObject]@{ HostIp = '10.10.0.1'; Port = 8745 }
 

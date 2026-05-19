@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Stop-VmFileServer.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Stop-VmFileServer.ps1"
 
     # Builds a fake server handle whose Listener, PowerShell, and Runspace
     # objects record whether Stop() / Dispose() were called on them.

@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\New-VmSshClient.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\Ssh\New-VmSshClient.ps1"
 
     # Replace the SSH.NET load guard with a configurable stub so tests can
     # both verify the guard is invoked and bypass it when exercising
