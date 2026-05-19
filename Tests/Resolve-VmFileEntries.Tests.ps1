@@ -17,7 +17,7 @@ Describe 'Resolve-VmFileEntries' {
 
     Context 'flatten mode (default), non-recursive' {
 
-        It 'returns one entry per matched file with Target = TargetDir/<basename>' {
+        It 'returns one entry per matched file with the basename appended to TargetDir' {
             $root = Join-Path $TestDrive 'flat'
             New-TestFile (Join-Path $root 'a.json')
             New-TestFile (Join-Path $root 'b.json')
