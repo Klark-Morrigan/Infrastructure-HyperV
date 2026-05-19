@@ -64,6 +64,31 @@ Add a new public function in `Infrastructure.HyperV` that:
     pattern only matched directories, that surfaces as the
     zero-files error).
 
+Extends the existing shared schema validator,
+[Assert-VmFilesField](../../../../Infrastructure.HyperV/Public/FileTransfer/Assert-VmFilesField.ps1),
+with optional awareness of a second entry shape so config-driven
+callers (Vm-Provisioner, Vm-Users) can express bulk-pattern entries
+in their `files` array without each repo growing its own discriminator.
+The extension is opt-in: existing consumers continue to see only the
+single-file form by default, so the change is backward-compatible by
+construction.
+
+- New entry shape: `{ pattern, targetDir, recurse?, preserveRelativePath? }`,
+  mirroring the parameters `Copy-VmFilesByPattern` accepts.
+- Per-entry discrimination by which key is present (`source` vs
+  `pattern`). Mixing both keys on one entry is a schema error;
+  neither is also a schema error.
+- Bulk-form sub-fields are bound by their own allow-list so typos
+  (`recursive`, `targetdir`) fail at validation time, matching the
+  protection the single form already provides.
+- Pre-flight existence of `pattern` against the host filesystem is
+  **not** checked at schema time. Globs are time-varying and the
+  resolver re-globs each provision; surfacing zero-match at parse
+  time would mean a second glob there. Pattern-resolution failures
+  land at the resolver - still before any SSH I/O, matching the
+  single form's "validate cheaply, fail before transport"
+  guarantee at the next layer down.
+
 ## Out of scope
 
 - VM-to-host or VM-to-VM transfers. Wildcard resolution is host-side
@@ -73,6 +98,14 @@ Add a new public function in `Infrastructure.HyperV` that:
   current stance.
 - Changes to `Copy-VmFiles` itself. The new function is a
   resolution layer on top of it.
+- Changing the default behaviour of `Assert-VmFilesField`. The
+  bulk-form awareness is gated behind an opt-in switch; existing
+  callers (Vm-Users, current Vm-Provisioner) see no behavioural
+  change unless they opt in.
+- Dispatch logic in any consumer repo. Choosing `Copy-VmFiles` vs
+  `Copy-VmFilesByPattern` per entry is the consumer's concern;
+  HyperV only validates that an entry is well-formed under one of
+  the two shapes.
 
 ## Design decisions
 
@@ -84,6 +117,8 @@ Add a new public function in `Infrastructure.HyperV` that:
 | Collision handling | Abort during pre-flight validation, before any SSH or file-server I/O | Fail-fast is consistent with `Copy-VmFiles`'s set-e semantics; running validation up-front guarantees an invalid request never produces a partial-write on the VM. |
 | Pre-flight validation | All shape checks (zero matches, basename collisions, duplicate targets, directory filtering) run as one host-side pass before any transport step | Cheap host-side checks should not depend on a live VM; keeps the failure mode deterministic and reproducible without a target. |
 | Transport | Delegate to `Copy-VmFiles` | Single source of truth for the SSH + file-server round-trip. |
+| Schema validator location | Extend `Assert-VmFilesField` rather than add a sibling | Keeps a single validator for both consumer repos to share; the bulk awareness is gated by an opt-in switch so default callers are unaffected. |
+| Schema-time check on `pattern` existence | Not performed; deferred to the resolver at transport time | Globs are time-varying and the resolver re-globs each run; pre-checking at parse time would duplicate the glob and introduce a second source of truth for the host-side rules. |
 
 ## Acceptance criteria
 
@@ -119,3 +154,15 @@ Add a new public function in `Infrastructure.HyperV` that:
     file.
   - Pattern that includes directories among its matches copies only
     the files (directories are ignored, not transferred as empty).
+- `Assert-VmFilesField` accepts the bulk entry shape when the new
+  opt-in switch is set. With the switch off (the default), the
+  validator behaves bit-for-bit as it did before this change;
+  existing consumers see no behavioural change.
+- Unit tests for the validator extension cover, with the switch on:
+  the valid bulk shape (required-only and with optional switches);
+  mixed single + bulk entries in one array; and every rejection
+  case (entry with both `source` and `pattern`; entry with neither;
+  missing `pattern`; missing or non-absolute `targetDir`; wrong
+  types on `pattern` / `targetDir` / `recurse` / `preserveRelativePath`;
+  unknown bulk sub-field). With the switch off, a bulk entry is
+  rejected by the existing "missing `source`" path.

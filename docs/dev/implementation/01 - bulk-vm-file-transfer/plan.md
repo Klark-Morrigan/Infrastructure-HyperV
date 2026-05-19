@@ -10,6 +10,7 @@ committable steps that each carry their own tests.
 - [Step 1: Private resolver `Resolve-VmFileEntries`](#step-1-private-resolver-resolve-vmfileentries)
 - [Step 2: Public `Copy-VmFilesByPattern` + module export](#step-2-public-copy-vmfilesbypattern--module-export)
 - [Step 3: Integration tests against the Docker target](#step-3-integration-tests-against-the-docker-target)
+- [Step 4: Schema-level bulk-entry support in `Assert-VmFilesField`](#step-4-schema-level-bulk-entry-support-in-assert-vmfilesfield)
 
 ## Shape of the change
 
@@ -216,3 +217,107 @@ for contents, `find` for the expected target tree.
 **README.** No change unless this introduces a new top-level test
 category; the existing test-running instructions already cover the
 Docker-target runner.
+
+## Step 4: Schema-level bulk-entry support in `Assert-VmFilesField`
+
+**Reason.** Steps 1-3 ship the bulk transport for code-driven callers.
+Config-driven callers (Vm-Provisioner, eventually Vm-Users) express
+their copy intent as JSON `files` arrays whose entries are validated
+by [Assert-VmFilesField](../../../../Infrastructure.HyperV/Public/FileTransfer/Assert-VmFilesField.ps1).
+That validator hard-codes `source` + `target` as required, so a bulk
+entry `{ pattern, targetDir, ... }` cannot reach `Copy-VmFilesByPattern`
+through any of those callers today. This step closes the schema gap so
+the transport from Steps 1-3 is actually reachable from a VM config.
+
+**Files.**
+
+- Edit: `Infrastructure.HyperV/Public/FileTransfer/Assert-VmFilesField.ps1`
+- Edit: `Tests/Assert-VmFilesField.Tests.ps1`
+- Edit: `Infrastructure.HyperV/Infrastructure.HyperV.psd1`
+  (`ModuleVersion` bump - additive change to a public validator, so a
+  minor bump).
+- Edit: `README.md` - extend the `Assert-VmFilesField` row in the
+  functions table to mention the bulk-entry form, and the
+  `Install-Module -MinimumVersion` line to match the new module version.
+
+**Behaviour.**
+
+- Add a new opt-in switch on `Assert-VmFilesField`, e.g.
+  `-AllowBulkEntries`. Default off, so every existing caller (notably
+  Vm-Users) keeps behaving exactly as today - this is the
+  backward-compatibility guarantee.
+- When the switch is **off**: function behaves as it does in 0.4.0.
+  No change for current consumers.
+- When the switch is **on**, per-entry discriminator:
+  - Entry has `source` => existing single-form path. Unchanged rules:
+    `source` is a non-empty string and exists on host; `target` is a
+    non-empty absolute Linux path; sub-fields are a subset of
+    `-AllowedSubFields` (still single-form's allow-list).
+  - Entry has `pattern` => bulk form. Required: `pattern` is a
+    non-empty string; `targetDir` is a non-empty absolute Linux path.
+    Optional: `recurse` is `[bool]`; `preserveRelativePath` is `[bool]`.
+    Sub-fields are checked against a bulk-form allow-list
+    (`pattern, targetDir, recurse, preserveRelativePath`) so a typo
+    like `recursive` or `targetdir` fails fast - same protection the
+    single form already gets.
+  - Entry has **both** `source` and `pattern`: error. Discrimination
+    must be unambiguous.
+  - Entry has **neither**: error. (Same shape as today's "missing
+    `source`", but the message now mentions both options so the
+    operator knows which form they wanted.)
+- The bulk form does **not** pre-check `pattern` existence host-side
+  the way the single form does for `source`. Globs are time-varying
+  by nature, and the resolver runs each provision; surfacing a
+  zero-match at parse time would require a glob there too, duplicating
+  the resolver. Pattern-resolution failures land at the resolver
+  during post-provisioning, still before any SSH I/O - same guarantee
+  the single form provides at the next layer down.
+- `-PostEntryValidator` is invoked per entry **after** the shared
+  shape checks for the matching form pass, same contract as today.
+  No caller currently exercises it for a bulk entry, but the hook
+  stays uniform.
+
+**Tests (unit).** Extend
+[Assert-VmFilesField.Tests.ps1](../../../../Tests/Assert-VmFilesField.Tests.ps1)
+with one new `Context` block for the bulk path. Existing tests do not
+change - they all run with the switch off (default), proving
+backward compatibility by construction.
+
+- Switch off + bulk entry: still rejected with the current "missing
+  `source`" message (pins the default behaviour).
+- Switch on, valid bulk entry (required fields only): no throw.
+- Switch on, valid bulk entry with `recurse` / `preserveRelativePath`:
+  no throw.
+- Switch on, single + bulk entries in one array: no throw (mixed
+  array is supported).
+- Switch on, rejection cases (each asserts the throw + message
+  prefix):
+  - Entry with both `source` and `pattern`.
+  - Entry with neither.
+  - Missing `pattern` on a clearly-bulk entry (`targetDir` present).
+  - Missing `targetDir` on a clearly-bulk entry.
+  - Non-absolute `targetDir`.
+  - Wrong type on `pattern` / `targetDir` / `recurse` /
+    `preserveRelativePath`.
+  - Unknown bulk sub-field (e.g. `targetdir`, `recursive`).
+
+**Mermaid.**
+
+```mermaid
+flowchart TD
+    Start([entry]) --> Switch{AllowBulkEntries?}
+    Switch -->|no| Single[single-form rules:<br/>source required + exists,<br/>target required + absolute]
+    Switch -->|yes| Disc{has source?<br/>has pattern?}
+    Disc -->|source only| Single
+    Disc -->|pattern only| Bulk[bulk-form rules:<br/>pattern required,<br/>targetDir required + absolute,<br/>recurse / preserveRelativePath<br/>are bool if present]
+    Disc -->|both| ErrBoth[/throw: ambiguous entry/]
+    Disc -->|neither| ErrNone[/throw: missing source or pattern/]
+    Single --> Hook[PostEntryValidator]
+    Bulk --> Hook
+```
+
+**README.** Update the `Assert-VmFilesField` line in the functions
+table to mention both entry forms; bump the `Install-Module
+-MinimumVersion` to the version chosen in the psd1 edit. No new
+top-level section - this is a refinement of an existing function, not
+a new public surface.
