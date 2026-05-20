@@ -99,11 +99,14 @@ Invoke-ContainerCommand "useradd --system --no-create-home --shell /usr/sbin/nol
 
 # -----------------------------------------------------------------------
 # 3. Configure sudoers
-#    Copy-VmFiles invokes exactly four binaries under sudo per entry. We
-#    grant NOPASSWD on those four paths only, mirroring the precise-grant
+#    Copy-VmFiles invokes a handful of binaries under sudo per entry. We
+#    grant NOPASSWD on exactly those paths, mirroring the precise-grant
 #    style used by Infrastructure-GitHubRunners' DockerTarget suite (so an
 #    accidental new sudo call here would surface as a CI failure instead
-#    of being silently masked by a blanket allow).
+#    of being silently masked by a blanket allow). sha256sum + stat cover
+#    the skip-unchanged reconcile path, which must be able to read the
+#    target's hash + owner + mode even when the deploy user is not the
+#    file owner.
 #
 #    File delivery: a host-side temp file plus 'docker cp', not a piped
 #    stdin into 'cat > file'. The pipe path runs the sudoers content
@@ -125,6 +128,8 @@ ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/mkdir
 ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/curl
 ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/chown
 ${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/chmod
+${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/sha256sum
+${Script:DeployUser} ALL=(root) NOPASSWD: /usr/bin/stat
 Defaults:${Script:DeployUser} !requiretty
 "@ -replace "`r`n", "`n"
 
