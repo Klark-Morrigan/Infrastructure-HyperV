@@ -14,6 +14,7 @@
     # run-unit-tests action enforces this.
     FunctionsToExport = @(
         'Add-VmFileServerFile',
+        'Assert-VmEnvVarsField',
         'Assert-VmFilesField',
         'Copy-VmFiles',
         'Copy-VmFilesByPattern',

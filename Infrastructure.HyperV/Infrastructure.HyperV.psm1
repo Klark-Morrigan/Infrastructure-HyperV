@@ -23,6 +23,10 @@
       - Assert-VmFilesField     : shared schema validator for a 'files' array
                                   on a VM definition; consumers extend via
                                   -AllowedSubFields and -PostEntryValidator
+      - Assert-VmEnvVarsField   : shared schema validator for an 'envVars'
+                                  array on a VM definition; fixed rule set
+                                  (POSIX-identifier name, non-empty value
+                                  with no LF/CR/NUL, no duplicate names)
       - Test-VmSshPort          : single-shot TCP probe of an SSH port; the
                                   ICMP-ping replacement for callers that
                                   intend to SSH immediately afterwards
@@ -39,6 +43,7 @@
       - Ssh\          : SSH client + port-probe primitives.
       - FileServer\   : host-side HTTP file server used to stage VM downloads.
       - FileTransfer\ : VM-side transport on top of Ssh + FileServer.
+      - EnvVars\      : VM-side system environment variable management.
     Each function still lives in its own file so diffs stay focused on a
     single function per commit.
 #>
@@ -60,6 +65,8 @@ $ErrorActionPreference = 'Stop'
 
 # Public functions:
 
+. "$PSScriptRoot\Public\EnvVars\Assert-VmEnvVarsField.ps1"
+
 . "$PSScriptRoot\Public\FileServer\Add-VmFileServerFile.ps1"
 . "$PSScriptRoot\Public\FileServer\Invoke-WithVmFileServer.ps1"
 
@@ -80,6 +87,7 @@ $ErrorActionPreference = 'Stop'
 # run-unit-tests action enforces that every Public\*.ps1 file appears in both.
 Export-ModuleMember -Function @(
     'Add-VmFileServerFile',
+    'Assert-VmEnvVarsField',
     'Assert-VmFilesField',
     'Copy-VmFiles',
     'Copy-VmFilesByPattern',
