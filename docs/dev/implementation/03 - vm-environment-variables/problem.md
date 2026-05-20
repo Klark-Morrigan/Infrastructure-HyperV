@@ -149,7 +149,9 @@ Per-entry write algorithm, one SSH round-trip:
 | Value quoting on disk | Always `NAME="VALUE"` with `"` and `\` escaped | `pam_env` treats unquoted whitespace as a delimiter; always-quoting normalises that. Escaping `"` and `\` lets values legitimately contain those characters without corrupting the file. |
 | Removing the whole block | Calling the cmdlet with an empty entries array strips the block (markers and all) | Lets a consumer say "this VM no longer wants any of our vars" without growing a second cmdlet. Mirrors how an `uninstall` flag works at the consumer layer. |
 | Public surface | Two functions: transport (`Set-VmEnvironmentVariables`) + validator (`Assert-VmEnvVarsField`) | Same split as the files feature - keeps the schema rules in one shared place and the transport in another, so consumers do not re-derive either. |
-| Sentinel string | `# BEGIN Infrastructure.HyperV envVars` / `# END Infrastructure.HyperV envVars` | Names the owner so an operator reading the file knows who to blame; a comment-line `#` keeps the markers invisible to `pam_env`. Versioning the marker (e.g. `v1`) was rejected as premature - the block format itself is the contract, and the marker rename can be added later if the format ever breaks. |
+| Sentinel string | `# BEGIN <blockName>` / `# END <blockName>` where `blockName` comes from the JSON | A single shared name across all consumers means two repos that both wire in this transport would collide on the same block. Naming the block per VM (or per consumer) lets unrelated owners coexist in one `/etc/environment` without stepping on each other. A comment-line `#` keeps the markers invisible to `pam_env`. Versioning the marker (e.g. `v1`) was rejected as premature - the block format itself is the contract, and the marker rename can be added later if the format ever breaks. |
+| `envVars` schema shape | Object `{ blockName, entries }` with both required | Wraps the entry list with its owner so the validator (and any consumer reading the JSON) sees both fields in one place. A sibling top-level field (`envVarsBlockName`) was rejected because the two fields are useless apart - forgetting one leaves the other dangling. `blockName` is required (no implicit default) so colliding writes can never happen by accident; the operator picks the name deliberately. |
+| `blockName` rules | Non-empty string, 1-128 chars, `[A-Za-z0-9._ -]` only, no leading/trailing whitespace | Forbidden characters would break the marker line: `'` breaks the shell single-quoted assignment, newlines split the marker across lines, NUL is rejected by tools. Bounded length keeps `/etc/environment` readable. Allowing internal spaces preserves the natural form (`MyApp envVars`) the original sentinel used. |
 
 ## Acceptance criteria
 
@@ -171,11 +173,18 @@ Per-entry write algorithm, one SSH round-trip:
 - A crash partway through the remote script never leaves
   `/etc/environment` truncated - the atomic write is asserted by
   inspecting the script shape (temp file + `mv` under `set -e`).
-- `Assert-VmEnvVarsField` rejects, before any SSH I/O: non-array
-  `envVars`; entries that are not objects; entries missing `name`
-  or `value`; `name` that is not a POSIX identifier; `name`
-  containing `=`; `value` that is empty, contains a newline, or
-  contains a NUL; entries with unknown sub-fields.
+- `Assert-VmEnvVarsField` rejects, before any SSH I/O: `envVars`
+  that is not an object; missing `blockName` or `entries`;
+  `blockName` empty, too long, or containing disallowed
+  characters; `entries` that is not an array; entries that are
+  not objects; entries missing `name` or `value`; `name` that is
+  not a POSIX identifier; `name` containing `=`; `value` that is
+  empty, contains a newline, or contains a NUL; entries with
+  unknown sub-fields.
+- `Set-VmEnvironmentVariables` requires a `-BlockName` parameter
+  and emits markers using that name; two calls with different
+  block names produce two independent managed blocks in
+  `/etc/environment` that do not interfere with each other.
 - A `Set-VmEnvironmentVariables` call where the freshly built
   managed block byte-for-byte equals the file's existing managed
   block produces no `mv` and no `chmod` (skip-unchanged path).

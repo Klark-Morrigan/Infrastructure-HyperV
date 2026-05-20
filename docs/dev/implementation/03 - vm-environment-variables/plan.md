@@ -9,7 +9,8 @@ smallest committable steps that each carry their own tests.
 - [Shape of the change](#shape-of-the-change)
 - [Step 1: Schema validator `Assert-VmEnvVarsField`](#step-1-schema-validator-assert-vmenvvarsfield)
 - [Step 2: Transport `Set-VmEnvironmentVariables`](#step-2-transport-set-vmenvironmentvariables)
-- [Step 3: Integration tests against the Docker target](#step-3-integration-tests-against-the-docker-target)
+- [Step 3: Per-VM `blockName` (schema + transport)](#step-3-per-vm-blockname-schema--transport)
+- [Step 4: Integration tests against the Docker target](#step-4-integration-tests-against-the-docker-target)
 
 Each step that adds a new public function also ships it: it edits the
 psm1 (`Export-ModuleMember`), the psd1 (`FunctionsToExport` plus a
@@ -290,12 +291,148 @@ flowchart TD
 **README.** This step IS the transport's README row + the `0.8.0`
 `Install-Module` bump. Same parity guard from Step 1 applies.
 
-## Step 3: Integration tests against the Docker target
+## Step 3: Per-VM `blockName` (schema + transport)
+
+**Reason.** A single hard-coded sentinel
+(`Infrastructure.HyperV envVars`) means any two consumers wiring
+this transport into the same VM (e.g. a CI repo and a separate
+service-config repo) would collide on the same managed block - the
+"last writer wins, everyone else's keys disappear" failure mode.
+Naming the block per VM in the JSON lets unrelated owners coexist
+in one `/etc/environment`. Required (no implicit default) so a
+collision can never happen by accident; see
+[problem.md - Design decisions](problem.md#design-decisions).
+
+This step is split across the validator AND the transport in one
+commit because the two halves are useless apart: the validator
+would accept a field the transport ignored, or the transport would
+demand a parameter the validator did not enforce.
+
+**Files.**
+
+- Edit: `Infrastructure.HyperV/Public/EnvVars/Assert-VmEnvVarsField.ps1`
+  - Treat `envVars` as a JSON object (PSCustomObject) `{ blockName, entries }`
+    rather than an array. Both sub-fields are required.
+  - Replace the existing "must be a JSON array" check with the new
+    object-shape check; the existing per-entry rules move under
+    `envVars.entries` unchanged.
+- Edit: `Infrastructure.HyperV/Public/EnvVars/Set-VmEnvironmentVariables.ps1`
+  - Add a `-BlockName` parameter (`Mandatory`, validated by a
+    private helper that mirrors the validator's `blockName` rules
+    so the transport stays safe even when callers bypass the
+    JSON-side validator).
+  - Replace the literal `# BEGIN Infrastructure.HyperV envVars` /
+    `# END ...` strings in the emitted script with markers built
+    from `$BlockName`, embedded host-side into the same bash
+    variable assignments (`BEGIN_MARKER='# BEGIN <name>'`).
+- Edit: `Tests/Assert-VmEnvVarsField.Tests.ps1` - rewrap every
+  fixture so `envVars` is `{ blockName, entries: [...] }`; add new
+  cases for the `blockName` rules (missing / wrong type / empty /
+  too long / forbidden character / leading-trailing whitespace);
+  add a case asserting both fields are required.
+- Edit: `Tests/Set-VmEnvironmentVariables.Tests.ps1` - add
+  `-BlockName 'test-block'` to every existing call; add a new test
+  asserting the emitted script contains the supplied name in BOTH
+  marker assignments; add a test asserting two different
+  `-BlockName` values produce two scripts whose marker strings
+  differ.
+- Edit: `Infrastructure.HyperV/Infrastructure.HyperV.psd1` - bump
+  `ModuleVersion` from `0.8.0` to `0.9.0` (breaking schema change
+  on the validator's input shape; pre-1.0 minor bump per semver).
+- Edit: `README.md` - update the `Assert-VmEnvVarsField` row to
+  describe the new wrapper shape and the `blockName` rules; update
+  the `Set-VmEnvironmentVariables` row to mention the required
+  `-BlockName` parameter; bump the `Install-Module -MinimumVersion`
+  line to `0.9.0`.
+
+**Behaviour.**
+
+- `Assert-VmEnvVarsField`:
+  - `envVars` absent: still a silent return (consumers gate the
+    call themselves).
+  - When present: must be a `PSCustomObject` with exactly the
+    sub-fields `blockName` and `entries`. Array / string / unknown
+    sub-fields throw.
+  - `blockName`: required string, 1-128 chars, matches
+    `^[A-Za-z0-9._ -]+$`, must not start or end with whitespace.
+    Throws naming the offending value on any failure.
+  - `entries`: required array, may be empty (the transport treats
+    empty as "remove the block"). Existing per-entry rules apply
+    unchanged; the duplicate-name pass also runs unchanged.
+- `Set-VmEnvironmentVariables`:
+  - `-BlockName` is `Mandatory`; the parameter binder rejects
+    missing values before any function-body code runs.
+  - A private host-side check re-runs the same `blockName` rules
+    so a caller that did not go through `Assert-VmEnvVarsField`
+    cannot inject `'` or newlines into the marker line.
+  - The emitted script uses `$BlockName` in both marker assignments
+    and nowhere else; the awk / strip / atomic-write logic is
+    untouched.
+
+**Tests (unit).**
+
+Validator:
+
+- `envVars` is a `PSCustomObject` with both `blockName` and
+  `entries`: returns silently for valid shapes.
+- `envVars` is an array (old shape) or a string: throws with
+  "must be an object with blockName and entries".
+- `envVars` missing `blockName` / missing `entries`: throws
+  naming the missing field.
+- `envVars` with an unknown sub-field (e.g. `name`, `markerVersion`):
+  throws naming the key.
+- `blockName` not a string / empty / longer than 128 / containing
+  `'` / containing `\n` / containing `\r` / containing `\0` /
+  containing a leading or trailing space: one `It` per shape, each
+  asserts the offending value appears in the message.
+- All existing entry-shape tests are migrated, not deleted - they
+  now construct their `envVars` via the new wrapper. Same
+  coverage, same expected errors.
+
+Transport:
+
+- Calling without `-BlockName` is a parameter-binding error
+  (Pester `Should -Throw` against the binder message).
+- `-BlockName 'app-a'` makes BOTH marker assignments contain
+  `'# BEGIN app-a'` and `'# END app-a'`.
+- Two calls with `-BlockName 'app-a'` and `-BlockName 'app-b'`
+  produce two scripts whose marker assignments differ - locks in
+  the "use the parameter, not a constant" wiring.
+- A `-BlockName` containing a `'` is rejected host-side, before
+  the SSH mock is called (`Should -Not -Invoke`). The validator
+  would already catch JSON-sourced names; this guards the
+  transport against direct callers.
+- All existing tests gain an explicit `-BlockName` argument; the
+  reconcile / atomic-write / escape / empty-entries / SSH-failure
+  assertions continue to hold.
+
+**Mermaid.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CallerA as Consumer A
+    participant CallerB as Consumer B
+    participant SVE as Set-VmEnvironmentVariables
+    participant Env as /etc/environment
+
+    CallerA->>SVE: -BlockName 'app-a', entries A
+    SVE->>Env: write block "# BEGIN app-a ... # END app-a"
+    CallerB->>SVE: -BlockName 'app-b', entries B
+    SVE->>Env: write block "# BEGIN app-b ... # END app-b"
+    Note over Env: two independent blocks coexist
+```
+
+**README.** Update the `Assert-VmEnvVarsField` and
+`Set-VmEnvironmentVariables` rows in place; bump
+`Install-Module -MinimumVersion` to `0.9.0`. No new rows.
+
+## Step 4: Integration tests against the Docker target
 
 **Reason.** Unit tests pin the script shape; only a live VM-side
-run can prove the awk extraction, the atomic `mv`, and the
-out-of-block preservation behave as intended. Mirrors the
-integration split used by
+run can prove the awk extraction, the atomic `mv`, the
+out-of-block preservation, and the per-`blockName` isolation from
+Step 3 behave as intended. Mirrors the integration split used by
 [01 - bulk-vm-file-transfer Step 3](../01%20-%20bulk-vm-file-transfer/plan.md#step-3-integration-tests-against-the-docker-target)
 and
 [02 - skip-unchanged Step 2](../02%20-%20skip-unchanged-on-copy/plan.md#step-2-integration-tests-against-the-docker-target).
@@ -358,6 +495,17 @@ small checks; mtime acts as the "did the write run" proxy
     quoted and escaped, and that `bash -lc 'echo "$NAME"'`
     after a fresh login (or `pam_env -d`) yields the original
     string.
+11. **Two block names coexist.** Call with
+    `-BlockName 'integration-a'` and entries A, then call with
+    `-BlockName 'integration-b'` and entries B. Verify: both
+    blocks are present in `/etc/environment`, each with its own
+    BEGIN / END markers, and the lines of one block do not
+    appear inside the other. A re-run of (A) with the same
+    entries does not disturb (B). A call with empty entries on
+    `-BlockName 'integration-a'` removes that block only;
+    `-BlockName 'integration-b'`'s block is preserved
+    byte-for-byte. Pins the per-VM `blockName` contract
+    introduced in Step 3.
 
 **Tests (unit).** None - this step adds only integration tests.
 
