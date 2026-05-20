@@ -13,6 +13,43 @@
 
 BeforeAll {
     . "$PSScriptRoot\Initialize-DockerTargetEnvironment.ps1"
+
+    # Helpers live in BeforeAll, not inside Describe. Pester 5 runs the
+    # Describe body in a discovery pass that does not execute nested
+    # `function` statements, so an `It` referencing them at run time would
+    # see "CommandNotFoundException".
+    function Get-VmFileMtime {
+        # %y is the full nanosecond-precision modification timestamp. We
+        # compare it as a string between runs; any byte difference means
+        # the kernel observed a write. sudo because the parent dir was
+        # created root-owned and the file owner may be a different user.
+        return Invoke-SshQuery "sudo stat -c '%y' '$Script:VmTargetPath'"
+    }
+
+    function Invoke-Copy {
+        param([switch] $NoSkipUnchanged)
+
+        $entry = @{
+            Source = $Script:HostSourcePath
+            Target = $Script:VmTargetPath
+            Owner  = $Script:DesiredOwner
+            Mode   = $Script:DesiredMode
+        }
+        $params = @{
+            SshClient = $Script:SshClient
+            Server    = $Script:FileServer
+            Entries   = @($entry)
+        }
+        if ($NoSkipUnchanged) { $params['NoSkipUnchanged'] = $true }
+        Copy-VmFiles @params
+    }
+
+    # Some filesystems clamp mtime granularity coarser than the kernel's
+    # nanosecond clock (overlayfs on older kernels has done this). A short
+    # sleep between runs guarantees a write-induced mtime change is
+    # distinguishable from "the second run happened so fast that mtime
+    # didn't tick." 1.1s comfortably exceeds 1-second granularity.
+    function Wait-ForMtimeTick { Start-Sleep -Milliseconds 1100 }
 }
 
 AfterAll {
@@ -47,41 +84,6 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
             Remove-Item -LiteralPath $Script:HostCaseDir -Recurse -Force
         }
     }
-
-    # Helpers --------------------------------------------------------------
-
-    function Get-VmFileMtime {
-        # %y is the full nanosecond-precision modification timestamp. We
-        # compare it as a string between runs; any byte difference means
-        # the kernel observed a write. sudo because the parent dir was
-        # created root-owned and the file owner may be a different user.
-        return Invoke-SshQuery "sudo stat -c '%y' '$Script:VmTargetPath'"
-    }
-
-    function Invoke-Copy {
-        param([switch] $NoSkipUnchanged)
-
-        $entry = @{
-            Source = $Script:HostSourcePath
-            Target = $Script:VmTargetPath
-            Owner  = $Script:DesiredOwner
-            Mode   = $Script:DesiredMode
-        }
-        $params = @{
-            SshClient = $Script:SshClient
-            Server    = $Script:FileServer
-            Entries   = @($entry)
-        }
-        if ($NoSkipUnchanged) { $params['NoSkipUnchanged'] = $true }
-        Copy-VmFiles @params
-    }
-
-    # Some filesystems clamp mtime granularity coarser than the kernel's
-    # nanosecond clock (overlayfs on older kernels has done this). A short
-    # sleep between runs guarantees a write-induced mtime change is
-    # distinguishable from "the second run happened so fast that mtime
-    # didn't tick." 1.1s comfortably exceeds 1-second granularity.
-    function Wait-ForMtimeTick { Start-Sleep -Milliseconds 1100 }
 
     # Scenarios ------------------------------------------------------------
 
