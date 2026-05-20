@@ -21,9 +21,9 @@ BeforeAll {
     function Get-VmFileMtime {
         # %y is the full nanosecond-precision modification timestamp. We
         # compare it as a string between runs; any byte difference means
-        # the kernel observed a write. sudo because the parent dir was
-        # created root-owned and the file owner may be a different user.
-        return Invoke-SshQuery "sudo stat -c '%y' '$Script:VmTargetPath'"
+        # the kernel observed a write. Plain stat (no sudo) is enough -
+        # the parent dir is 0755 so any user can stat children.
+        return Invoke-SshQuery "stat -c '%y' '$Script:VmTargetPath'"
     }
 
     function Invoke-Copy {
@@ -104,30 +104,16 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     It 'lands the file with requested content, owner and mode on first run' {
         Set-HostSource -Content 'first-run-content'
 
-        # Diagnostics: the previous CI run produced a 0-byte VM file with
-        # the same assertion. Capture host + staging + VM state to isolate
-        # which hop drops the bytes.
-        $hostSize = if (Test-Path -LiteralPath $Script:HostSourcePath) {
-            (Get-Item -LiteralPath $Script:HostSourcePath).Length
-        } else { -1 }
-        $stagedPath = Join-Path $Script:FileServer.StagingDir 'payload.txt'
-
         Invoke-Copy
 
-        $stagedSize = if (Test-Path -LiteralPath $stagedPath) {
-            (Get-Item -LiteralPath $stagedPath).Length
-        } else { -1 }
-        $vmStat = Invoke-SshQuery (
-            "sudo stat -c '%s %U:%G %a' '$Script:VmTargetPath' 2>&1 || echo MISSING")
-
-        Write-Host "DIAG host=$Script:HostSourcePath size=$hostSize"
-        Write-Host "DIAG staged=$stagedPath size=$stagedSize"
-        Write-Host "DIAG vm=$Script:VmTargetPath stat=$vmStat"
-
-        $content = Invoke-SshQuery "sudo cat '$Script:VmTargetPath'"
+        # Plain cat/stat (no sudo): Copy-VmFiles writes 0644 inside a
+        # 0755-by-default parent created by `sudo mkdir -p`, so any user
+        # on the VM can traverse + read. Avoids needing /usr/bin/cat in
+        # the test sudoers - a much broader grant than the test needs.
+        $content = Invoke-SshQuery "cat '$Script:VmTargetPath'"
         $content | Should -Be 'first-run-content'
 
-        $meta = Invoke-SshQuery "sudo stat -c '%U:%G %a' '$Script:VmTargetPath'"
+        $meta = Invoke-SshQuery "stat -c '%U:%G %a' '$Script:VmTargetPath'"
         $meta | Should -Be "$Script:DesiredOwner 644"
     }
 
@@ -158,7 +144,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
         $mtimeAfter = Get-VmFileMtime
         $mtimeAfter | Should -Not -Be $mtimeBefore
 
-        $content = Invoke-SshQuery "sudo cat '$Script:VmTargetPath'"
+        $content = Invoke-SshQuery "cat '$Script:VmTargetPath'"
         $content | Should -Be 'much-longer-replacement-content'
     }
 
@@ -174,7 +160,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
         Wait-ForMtimeTick
         Invoke-Copy
 
-        $meta = Invoke-SshQuery "sudo stat -c '%U:%G' '$Script:VmTargetPath'"
+        $meta = Invoke-SshQuery "stat -c '%U:%G' '$Script:VmTargetPath'"
         $meta | Should -Be $Script:DesiredOwner
 
         $mtimeAfter = Get-VmFileMtime
@@ -194,7 +180,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
         Wait-ForMtimeTick
         Invoke-Copy
 
-        $mode = Invoke-SshQuery "sudo stat -c '%a' '$Script:VmTargetPath'"
+        $mode = Invoke-SshQuery "stat -c '%a' '$Script:VmTargetPath'"
         $mode | Should -Be '644'
 
         $mtimeAfter = Get-VmFileMtime
