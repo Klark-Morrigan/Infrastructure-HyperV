@@ -50,6 +50,20 @@ BeforeAll {
     # distinguishable from "the second run happened so fast that mtime
     # didn't tick." 1.1s comfortably exceeds 1-second granularity.
     function Wait-ForMtimeTick { Start-Sleep -Milliseconds 1100 }
+
+    function Set-HostSource {
+        param([Parameter(Mandatory)][string] $Content)
+        # WriteAllText with explicit UTF-8 (no BOM) writes the bytes
+        # verbatim - no trailing newline, no encoding surprise. We avoid
+        # `Set-Content -NoNewline` with pipeline input here because that
+        # combination has produced 0-byte files on PS 7 / Linux runners,
+        # which silently broke the SHA-256 reconcile path. Same reasoning
+        # the BeforeAll uses for the sudoers file (see
+        # Initialize-DockerTargetEnvironment.ps1 step 3).
+        [System.IO.File]::WriteAllText(
+            $Script:HostSourcePath, $Content,
+            [System.Text.UTF8Encoding]::new($false))
+    }
 }
 
 AfterAll {
@@ -88,7 +102,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     # Scenarios ------------------------------------------------------------
 
     It 'lands the file with requested content, owner and mode on first run' {
-        'first-run-content' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'first-run-content'
 
         Invoke-Copy
 
@@ -100,7 +114,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     }
 
     It 'skips the VM-side write on an identical re-run (mtime unchanged)' {
-        'unchanged' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'unchanged'
         Invoke-Copy
         $mtimeBefore = Get-VmFileMtime
 
@@ -112,7 +126,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     }
 
     It 're-writes when the host source content changes' {
-        'short' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'short'
         Invoke-Copy
         $mtimeBefore = Get-VmFileMtime
 
@@ -120,8 +134,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
         # Distinct byte count so Add-VmFileServerFile's name+size
         # idempotency check re-stages the new bytes rather than serving
         # the original staged copy.
-        'much-longer-replacement-content' |
-            Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'much-longer-replacement-content'
         Invoke-Copy
 
         $mtimeAfter = Get-VmFileMtime
@@ -132,7 +145,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     }
 
     It 're-applies the requested owner when the VM file has been chowned away' {
-        'owner-drift' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'owner-drift'
         Invoke-Copy
         $mtimeBefore = Get-VmFileMtime
 
@@ -151,7 +164,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     }
 
     It 're-applies the requested mode when the VM file has been chmoded away' {
-        'mode-drift' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'mode-drift'
         Invoke-Copy
         $mtimeBefore = Get-VmFileMtime
 
@@ -171,7 +184,7 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     }
 
     It '-NoSkipUnchanged forces a re-write even when nothing changed' {
-        'forced' | Set-Content -LiteralPath $Script:HostSourcePath -NoNewline
+        Set-HostSource -Content 'forced'
         Invoke-Copy
         $mtimeBefore = Get-VmFileMtime
 
