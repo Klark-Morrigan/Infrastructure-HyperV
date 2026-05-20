@@ -104,7 +104,25 @@ Describe 'Copy-VmFiles -SkipUnchanged (integration)' {
     It 'lands the file with requested content, owner and mode on first run' {
         Set-HostSource -Content 'first-run-content'
 
+        # Diagnostics: the previous CI run produced a 0-byte VM file with
+        # the same assertion. Capture host + staging + VM state to isolate
+        # which hop drops the bytes.
+        $hostSize = if (Test-Path -LiteralPath $Script:HostSourcePath) {
+            (Get-Item -LiteralPath $Script:HostSourcePath).Length
+        } else { -1 }
+        $stagedPath = Join-Path $Script:FileServer.StagingDir 'payload.txt'
+
         Invoke-Copy
+
+        $stagedSize = if (Test-Path -LiteralPath $stagedPath) {
+            (Get-Item -LiteralPath $stagedPath).Length
+        } else { -1 }
+        $vmStat = Invoke-SshQuery (
+            "sudo stat -c '%s %U:%G %a' '$Script:VmTargetPath' 2>&1 || echo MISSING")
+
+        Write-Host "DIAG host=$Script:HostSourcePath size=$hostSize"
+        Write-Host "DIAG staged=$stagedPath size=$stagedSize"
+        Write-Host "DIAG vm=$Script:VmTargetPath stat=$vmStat"
 
         $content = Invoke-SshQuery "sudo cat '$Script:VmTargetPath'"
         $content | Should -Be 'first-run-content'
