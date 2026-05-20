@@ -34,6 +34,7 @@ It is published to PSGallery and consumed by other repos.
 | `Copy-VmFiles` | Per-entry transport: stages each `{ Source, Target, Owner?, Mode? }` via the file server, then `mkdir -p` + `curl -fsSL -o` + `chown` + `chmod` under sudo on the VM. Re-runs reconcile against the VM (SHA-256 + owner + mode) and skip when all three match; pass `-NoSkipUnchanged` to force a write every time. |
 | `Copy-VmFilesByPattern` | Wildcard front-end to `Copy-VmFiles`. Expands a host-side pattern, validates host-side (no SSH on rejection), then forwards to `Copy-VmFiles`. |
 | `Assert-VmFilesField` | Shared schema validator for a `files` array on a VM definition. Single-form entries (`{source, target, ...}`) by default; bulk-form entries (`{pattern, targetDir, recurse?, preserveRelativePath?}`) under `-AllowBulkEntries` for callers wired to `Copy-VmFilesByPattern`. Consumers extend the single form via `-AllowedSubFields` / `-PostEntryValidator`. |
+| `Assert-VmEnvVarsField` | Shared schema validator for an `envVars` array on a VM definition. Each entry is `{name, value}`; name must be a POSIX identifier (no `=`), value must be a non-empty string with no LF/CR/NUL, and names must be unique. Absent / empty arrays are valid (the transport treats an empty array as "remove the managed block"). |
 
 SSH helpers require Posh-SSH's bundled `Renci.SshNet.dll` to be loaded into
 the session - `Invoke-ModuleInstall -ModuleName 'Posh-SSH'` is the standard
