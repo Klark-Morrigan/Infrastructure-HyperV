@@ -9,17 +9,7 @@
     reach over SSH or HTTP.
 
     Current functions:
-      - Invoke-SshClientCommand : runs a shell command via SSH.NET SshClient
-      - New-VmSshClient         : creates and connects a SSH.NET SshClient
-      - Invoke-WithVmFileServer : runs a script block with a live HTTP file
-                                  server bound to the Hyper-V internal switch
       - Add-VmFileServerFile    : stages a host file and returns its VM URL
-      - Copy-VmFiles            : per-entry transport (Add-VmFileServerFile +
-                                  curl -o + chown + chmod under sudo); each
-                                  entry is { Source, Target, Owner?, Mode? }
-      - Copy-VmFilesByPattern   : wildcard front-end to Copy-VmFiles; expands
-                                  a host-side pattern, validates host-side,
-                                  then forwards to Copy-VmFiles
       - Assert-VmFilesField     : shared schema validator for a 'files' array
                                   on a VM definition; consumers extend via
                                   -AllowedSubFields and -PostEntryValidator
@@ -27,6 +17,16 @@
                                   array on a VM definition; fixed rule set
                                   (POSIX-identifier name, non-empty value
                                   with no LF/CR/NUL, no duplicate names)
+      - Copy-VmFiles            : per-entry transport (Add-VmFileServerFile +
+                                  curl -o + chown + chmod under sudo); each
+                                  entry is { Source, Target, Owner?, Mode? }
+      - Copy-VmFilesByPattern   : wildcard front-end to Copy-VmFiles; expands
+                                  a host-side pattern, validates host-side,
+                                  then forwards to Copy-VmFiles
+      - Invoke-SshClientCommand : runs a shell command via SSH.NET SshClient
+      - Invoke-WithVmFileServer : runs a script block with a live HTTP file
+                                  server bound to the Hyper-V internal switch
+      - New-VmSshClient         : creates and connects a SSH.NET SshClient
       - Set-VmEnvironmentVariables : writes a sentinel-delimited managed
                                   block of NAME="VALUE" lines to
                                   /etc/environment on the VM. Reconciles
