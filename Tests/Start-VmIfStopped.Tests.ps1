@@ -68,8 +68,11 @@ Describe 'Start-VmIfStopped' {
         }
 
         It 'emits exactly one verbose line naming the transition' {
-            $verbose = Start-VmIfStopped -VmName 'vm-off' -Verbose 4>&1 |
-                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] }
+            # @(...) forces array semantics: Where-Object returns a scalar
+            # when one item matches, and `.Count` on the scalar throws under
+            # Set-StrictMode 'Latest'. See feedback_pester5_single_match_count.
+            $verbose = @(Start-VmIfStopped -VmName 'vm-off' -Verbose 4>&1 |
+                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] })
 
             $verbose.Count       | Should -Be 1
             $verbose[0].Message  | Should -BeLike '*vm-off*Off*Started*'
@@ -102,8 +105,10 @@ Describe 'Start-VmIfStopped' {
         }
 
         It 'emits exactly one verbose line naming the transition' {
-            $verbose = Start-VmIfStopped -VmName 'vm-saved' -Verbose 4>&1 |
-                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] }
+            # @(...) forces array semantics; Where-Object returns a scalar
+            # on a single match and `.Count` blows up under strict mode.
+            $verbose = @(Start-VmIfStopped -VmName 'vm-saved' -Verbose 4>&1 |
+                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] })
 
             $verbose.Count       | Should -Be 1
             $verbose[0].Message  | Should -BeLike '*vm-saved*Saved*Resumed*'
@@ -135,8 +140,10 @@ Describe 'Start-VmIfStopped' {
         }
 
         It 'emits exactly one verbose line naming the transition' {
-            $verbose = Start-VmIfStopped -VmName 'vm-up' -Verbose 4>&1 |
-                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] }
+            # @(...) forces array semantics; Where-Object returns a scalar
+            # on a single match and `.Count` blows up under strict mode.
+            $verbose = @(Start-VmIfStopped -VmName 'vm-up' -Verbose 4>&1 |
+                Where-Object { $_ -is [System.Management.Automation.VerboseRecord] })
 
             $verbose.Count       | Should -Be 1
             $verbose[0].Message  | Should -BeLike '*vm-up*Running*AlreadyRunning*'
