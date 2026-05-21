@@ -1,5 +1,5 @@
 @{
-    ModuleVersion        = '0.7.0'
+    ModuleVersion        = '0.8.0'
     GUID                 = 'c4a9d3e2-8b1f-4d7a-9e3c-5f2b8a1d4c6e'
     Author               = 'Vitaly Andrev'
     Description          = 'Hyper-V VM utilities (SSH, host file server) for infrastructure repos.'
@@ -22,6 +22,7 @@
         'Invoke-WithVmFileServer',
         'New-VmSshClient',
         'Set-VmEnvironmentVariables',
+        'Start-VmIfStopped',
         'Test-VmSshPort',
         'Wait-VmSshReady'
     )

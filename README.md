@@ -29,6 +29,7 @@ It is published to PSGallery and consumed by other repos.
 | `Invoke-SshClientCommand` | Runs a shell command on a connected `SshClient` and returns `{ Output, Error, ExitStatus }`. |
 | `Test-VmSshPort` | Single-shot TCP probe of an SSH port. Returns `$true` if the port accepted a connection within the timeout; strict superset of an ICMP ping for "should I SSH?". |
 | `Wait-VmSshReady` | Polls `Test-VmSshPort` until the port comes up or a deadline expires. Returns `$true` on success, `$false` on timeout - never throws on the network path. |
+| `Start-VmIfStopped` | Idempotent Hyper-V power-on by VM name. Starts an `Off` VM, resumes a `Saved` VM, no-ops on `Running`, and throws (without calling `Start-VM`) on transient states (`Paused`, `Stopping`, `Starting`, `Saving`) or any unrecognised state. Returns `{ VmName, EntryState, Action }` describing the transition. Pair with `Wait-VmSshReady` to bring a VM up and gate on sshd accepting connections. |
 | `Invoke-WithVmFileServer` | Runs a script block with a live HTTP file server bound to the Hyper-V internal switch; guarantees cleanup in a `finally`. |
 | `Add-VmFileServerFile` | Stages a host-side file in the live server and returns its VM-reachable download URL. Idempotent by name + byte count. |
 | `Copy-VmFiles` | Per-entry transport: stages each `{ Source, Target, Owner?, Mode? }` via the file server, then `mkdir -p` + `curl -fsSL -o` + `chown` + `chmod` under sudo on the VM. Re-runs reconcile against the VM (SHA-256 + owner + mode) and skip when all three match; pass `-NoSkipUnchanged` to force a write every time. |
@@ -44,7 +45,7 @@ way to do that. The module fails fast with an actionable message otherwise.
 ## Usage
 
 ```powershell
-Install-Module -Name Infrastructure.HyperV -MinimumVersion 0.7.0
+Install-Module -Name Infrastructure.HyperV -MinimumVersion 0.8.0
 Import-Module Infrastructure.HyperV
 ```
 
