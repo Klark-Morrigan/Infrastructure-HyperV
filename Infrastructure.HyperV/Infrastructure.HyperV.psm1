@@ -43,6 +43,12 @@
                                   when unchanged (default);
                                   -NoSkipUnchanged forces a write. Empty
                                   entries array removes the managed block
+      - Remove-VmProfileDScript : idempotent removal of a
+                                  /etc/profile.d/<Name>.sh script
+                                  under sudo. No-op when the target
+                                  is absent; mirrors
+                                  Set-VmProfileDScript on the
+                                  uninstall side
       - Set-VmProfileDScript    : writes a /etc/profile.d/<Name>.sh
                                   shell snippet on the VM under sudo
                                   via an atomic temp-file + mv. Byte-
@@ -121,6 +127,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Public\Ssh\Test-VmSshPort.ps1"
 . "$PSScriptRoot\Public\Ssh\Wait-VmSshReady.ps1"
 
+. "$PSScriptRoot\Public\ProfileD\Remove-VmProfileDScript.ps1"
 . "$PSScriptRoot\Public\ProfileD\Set-VmProfileDScript.ps1"
 
 . "$PSScriptRoot\Public\Symlinks\New-VmSymlink.ps1"
@@ -142,6 +149,7 @@ Export-ModuleMember -Function @(
     'Invoke-WithVmFileServer',
     'New-VmSshClient',
     'New-VmSymlink',
+    'Remove-VmProfileDScript',
     'Remove-VmSymlink',
     'Set-VmEnvironmentVariables',
     'Set-VmProfileDScript',
