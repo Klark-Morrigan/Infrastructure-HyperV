@@ -49,6 +49,7 @@ prevention is the headline behavioural contract.
 |---|---|
 | `New-VmSymlink` | Ensures `<Path>` is a symlink to `<Target>` under sudo. No-op when the symlink already points at the requested target; throws (without writing) when `<Path>` exists as a regular file, directory, or symlink to a different target. Path and target are validated host-side (absolute, no `..`, no NUL, no single quote) before any SSH call. |
 | `Remove-VmSymlink` | Removes the symlink at `<Path>` under sudo. No-op when `<Path>` does not exist; throws (without deleting) when `<Path>` exists as a regular file, directory, or other non-symlink object. Path is validated host-side (absolute, no `..`, no NUL, no single quote) before any SSH call. |
+| `Set-VmProfileDScript` | Writes a `/etc/profile.d/<Name>.sh` script on the VM under sudo via an atomic temp-file + `mv`. Byte-compares against the file currently on the VM and skips the write when unchanged (default); `-NoSkipUnchanged` forces a write. `Name` is validated host-side (`^[A-Za-z0-9._-]+$`, must not end in `.sh`); a trailing newline is appended to `Content` if missing so the snippet is not silently ignored by POSIX shells. The atomic-write tail (`tee` -> `chown root:root` -> `chmod 0644` -> `mv`) is the shared module-internal helper. |
 
 SSH helpers require Posh-SSH's bundled `Renci.SshNet.dll` to be loaded into
 the session - `Invoke-ModuleInstall -ModuleName 'Posh-SSH'` is the standard

@@ -43,6 +43,12 @@
                                   when unchanged (default);
                                   -NoSkipUnchanged forces a write. Empty
                                   entries array removes the managed block
+      - Set-VmProfileDScript    : writes a /etc/profile.d/<Name>.sh
+                                  shell snippet on the VM under sudo
+                                  via an atomic temp-file + mv. Byte-
+                                  compares against the existing file
+                                  and skips when unchanged (default);
+                                  -NoSkipUnchanged forces a write
       - Start-VmIfStopped       : idempotent Hyper-V power-on. Starts Off /
                                   resumes Saved / no-ops on Running; throws
                                   on transient or unrecognised states. Pair
@@ -67,6 +73,7 @@
       - FileServer\   : host-side HTTP file server used to stage VM downloads.
       - FileTransfer\ : VM-side transport on top of Ssh + FileServer.
       - EnvVars\      : VM-side system environment variable management.
+      - ProfileD\     : VM-side /etc/profile.d/*.sh install primitives.
       - Symlinks\     : VM-side symbolic-link install / uninstall primitives.
     Each function still lives in its own file so diffs stay focused on a
     single function per commit.
@@ -112,6 +119,8 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Public\Ssh\Test-VmSshPort.ps1"
 . "$PSScriptRoot\Public\Ssh\Wait-VmSshReady.ps1"
 
+. "$PSScriptRoot\Public\ProfileD\Set-VmProfileDScript.ps1"
+
 . "$PSScriptRoot\Public\Symlinks\New-VmSymlink.ps1"
 . "$PSScriptRoot\Public\Symlinks\Remove-VmSymlink.ps1"
 
@@ -133,6 +142,7 @@ Export-ModuleMember -Function @(
     'New-VmSymlink',
     'Remove-VmSymlink',
     'Set-VmEnvironmentVariables',
+    'Set-VmProfileDScript',
     'Start-VmIfStopped',
     'Test-VmSshPort',
     'Wait-VmSshReady'

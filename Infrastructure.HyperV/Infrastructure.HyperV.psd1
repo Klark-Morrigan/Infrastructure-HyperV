@@ -24,6 +24,7 @@
         'New-VmSymlink',
         'Remove-VmSymlink',
         'Set-VmEnvironmentVariables',
+        'Set-VmProfileDScript',
         'Start-VmIfStopped',
         'Test-VmSshPort',
         'Wait-VmSshReady'
