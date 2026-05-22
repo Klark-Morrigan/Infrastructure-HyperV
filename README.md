@@ -38,6 +38,17 @@ It is published to PSGallery and consumed by other repos.
 | `Assert-VmFilesField` | Shared schema validator for a `files` array on a VM definition. Single-form entries (`{source, target, ...}`) by default; bulk-form entries (`{pattern, targetDir, recurse?, preserveRelativePath?}`) under `-AllowBulkEntries` for callers wired to `Copy-VmFilesByPattern`. Consumers extend the single form via `-AllowedSubFields` / `-PostEntryValidator`. |
 | `Assert-VmEnvVarsField` | Shared schema validator for an `envVars` object on a VM definition. Shape is `{ blockName, entries }` (both required when `envVars` is present). `blockName` is a 1-128 char string from `[A-Za-z0-9._ -]` with no leading/trailing whitespace. Each entry is `{name, value}`; name must be a POSIX identifier (no `=`), value must be a non-empty string with no LF/CR/NUL, and names must be unique. Absent `envVars` is valid; an empty `entries` array is valid and the transport treats it as "remove the managed block". |
 
+### VM install primitives
+
+Single-round-trip cmdlets that install or uninstall small artefacts on a
+running VM under sudo. All members of this family are idempotent and refuse
+to silently clobber the wrong kind of object at the target path - data-loss
+prevention is the headline behavioural contract.
+
+| Function | Description |
+|---|---|
+| `New-VmSymlink` | Ensures `<Path>` is a symlink to `<Target>` under sudo. No-op when the symlink already points at the requested target; throws (without writing) when `<Path>` exists as a regular file, directory, or symlink to a different target. Path and target are validated host-side (absolute, no `..`, no NUL, no single quote) before any SSH call. |
+
 SSH helpers require Posh-SSH's bundled `Renci.SshNet.dll` to be loaded into
 the session - `Invoke-ModuleInstall -ModuleName 'Posh-SSH'` is the standard
 way to do that. The module fails fast with an actionable message otherwise.

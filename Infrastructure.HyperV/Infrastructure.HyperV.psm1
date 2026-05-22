@@ -27,6 +27,11 @@
       - Invoke-WithVmFileServer : runs a script block with a live HTTP file
                                   server bound to the Hyper-V internal switch
       - New-VmSshClient         : creates and connects a SSH.NET SshClient
+      - New-VmSymlink           : idempotent symlink creation under sudo;
+                                  fails if Path exists as anything other
+                                  than a matching symlink (data-loss
+                                  guard) - first of the "VM install
+                                  primitives" family
       - Set-VmEnvironmentVariables : writes a sentinel-delimited managed
                                   block of NAME="VALUE" lines to
                                   /etc/environment on the VM. Reconciles
@@ -58,6 +63,7 @@
       - FileServer\   : host-side HTTP file server used to stage VM downloads.
       - FileTransfer\ : VM-side transport on top of Ssh + FileServer.
       - EnvVars\      : VM-side system environment variable management.
+      - Symlinks\     : VM-side symbolic-link install / uninstall primitives.
     Each function still lives in its own file so diffs stay focused on a
     single function per commit.
 #>
@@ -100,6 +106,8 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Public\Ssh\Test-VmSshPort.ps1"
 . "$PSScriptRoot\Public\Ssh\Wait-VmSshReady.ps1"
 
+. "$PSScriptRoot\Public\Symlinks\New-VmSymlink.ps1"
+
 # Export-ModuleMember controls what is actually callable after Import-Module.
 # It takes precedence over FunctionsToExport in the psd1 at runtime, so both
 # must be kept in sync. FunctionsToExport serves a separate purpose: it is
@@ -115,6 +123,7 @@ Export-ModuleMember -Function @(
     'Invoke-SshClientCommand',
     'Invoke-WithVmFileServer',
     'New-VmSshClient',
+    'New-VmSymlink',
     'Set-VmEnvironmentVariables',
     'Start-VmIfStopped',
     'Test-VmSshPort',
