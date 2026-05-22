@@ -6,6 +6,10 @@ BeforeAll {
     # only be locked in with the real validator participating.
     function Invoke-SshClientCommand { param($SshClient, $Command) }
 
+    # The cmdlet calls New-AtomicWriteBashFragment (private helper) to
+    # build the temp-file + chown + chmod + mv tail. Dot-source it here
+    # so command resolution succeeds without loading the whole module.
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Bash\New-AtomicWriteBashFragment.ps1"
     . "$PSScriptRoot\..\Infrastructure.HyperV\Public\EnvVars\Assert-VmEnvVarsField.ps1"
     . "$PSScriptRoot\..\Infrastructure.HyperV\Public\EnvVars\Set-VmEnvironmentVariables.ps1"
 

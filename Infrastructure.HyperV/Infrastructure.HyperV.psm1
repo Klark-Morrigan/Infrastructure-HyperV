@@ -77,6 +77,8 @@ $ErrorActionPreference = 'Stop'
 
 # Private functions:
 
+. "$PSScriptRoot\Private\Bash\New-AtomicWriteBashFragment.ps1"
+
 . "$PSScriptRoot\Private\FileServer\Get-VmSwitchHostIp.ps1"
 . "$PSScriptRoot\Private\FileServer\Start-VmFileServer.ps1"
 . "$PSScriptRoot\Private\FileServer\Stop-VmFileServer.ps1"
