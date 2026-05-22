@@ -9,6 +9,7 @@ BeforeAll {
     # Dot-source it directly so the test does not need to import the
     # whole module.
     . "$PSScriptRoot\..\Infrastructure.HyperV\Private\Bash\New-AtomicWriteBashFragment.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\ProfileD\Assert-VmProfileDScriptName.ps1"
     . "$PSScriptRoot\..\Infrastructure.HyperV\Public\ProfileD\Set-VmProfileDScript.ps1"
 
     $script:FakeSshClient = [PSCustomObject]@{
@@ -36,7 +37,7 @@ Describe 'Set-VmProfileDScript' {
             }
         }
 
-        It 'derives /etc/profile.d/<Name>.sh as the target path' {
+        It 'derives the target path /etc/profile.d/{Name}.sh from the Name parameter' {
             Set-VmProfileDScript -SshClient $script:FakeSshClient `
                                  -Name 'foo' `
                                  -Content "export FOO=1`n"

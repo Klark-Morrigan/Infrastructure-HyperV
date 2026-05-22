@@ -96,6 +96,8 @@ $ErrorActionPreference = 'Stop'
 
 . "$PSScriptRoot\Private\Power\Assert-HyperVModuleLoaded.ps1"
 
+. "$PSScriptRoot\Private\ProfileD\Assert-VmProfileDScriptName.ps1"
+
 . "$PSScriptRoot\Private\PsModules\Assert-PsModuleLoaded.ps1"
 
 . "$PSScriptRoot\Private\Ssh\Assert-SshNetLoaded.ps1"

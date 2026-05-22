@@ -74,25 +74,12 @@ function Set-VmProfileDScript {
         [switch] $NoSkipUnchanged
     )
 
-    # Name validation. Restricted to a tight character class so the
-    # value can be embedded into a single-quoted bash assignment and
-    # into a path with no risk of metacharacter interpretation. The
-    # `.sh` suffix is added by the cmdlet so callers cannot
-    # double-suffix the on-VM file.
-    if ([string]::IsNullOrEmpty($Name)) {
-        throw "Set-VmProfileDScript: -Name must be a non-empty string."
-    }
-    if ($Name -notmatch '^[A-Za-z0-9._-]+$') {
-        throw ("Set-VmProfileDScript: -Name '$Name' must match " +
-            "^[A-Za-z0-9._-]+`$ (no '/', spaces, or other characters).")
-    }
-    if ($Name -eq '.' -or $Name -eq '..') {
-        throw "Set-VmProfileDScript: -Name '$Name' is a reserved directory name."
-    }
-    if ($Name.EndsWith('.sh')) {
-        throw ("Set-VmProfileDScript: -Name '$Name' must not end with '.sh' - " +
-            "the cmdlet appends the suffix.")
-    }
+    # Name validation. Shared with Remove-VmProfileDScript via the
+    # private helper so an install accepted by one cmdlet cannot be
+    # rejected by the other. Restricted to a tight character class so
+    # the value can be embedded into a single-quoted bash assignment
+    # and into a path with no risk of metacharacter interpretation.
+    Assert-VmProfileDScriptName -Name $Name -CmdletName 'Set-VmProfileDScript'
 
     $targetPath = "/etc/profile.d/$Name.sh"
 
