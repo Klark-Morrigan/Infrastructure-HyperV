@@ -21,7 +21,7 @@ Describe 'Remove-VmDirectory' {
 
     Context 'allowlisted paths (happy path)' {
 
-        It 'accepts /opt/<name>' {
+        It 'accepts /opt/{name}' {
             Remove-VmDirectory -SshClient $script:FakeSshClient -Path '/opt/foo'
 
             Should -Invoke Invoke-SshClientCommand -ParameterFilter {
@@ -29,7 +29,7 @@ Describe 'Remove-VmDirectory' {
             }
         }
 
-        It 'accepts /var/lib/infra-provisioner/<rest>' {
+        It 'accepts /var/lib/infra-provisioner/{rest}' {
             Remove-VmDirectory -SshClient $script:FakeSshClient `
                 -Path '/var/lib/infra-provisioner/manifests/x.json'
 
@@ -38,7 +38,7 @@ Describe 'Remove-VmDirectory' {
             }
         }
 
-        It 'accepts /usr/local/share/<name>' {
+        It 'accepts /usr/local/share/{name}' {
             Remove-VmDirectory -SshClient $script:FakeSshClient -Path '/usr/local/share/y'
 
             Should -Invoke Invoke-SshClientCommand -ParameterFilter {
