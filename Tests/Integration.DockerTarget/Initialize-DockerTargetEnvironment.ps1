@@ -43,6 +43,11 @@ function Invoke-ContainerCommand {
 #    behaviour and giving Copy-VmFiles' curl step a stable URL to fetch
 #    from. Host port 2222 maps to 22 in the container so SSH does not
 #    conflict with any local sshd.
+#    --init injects tini as PID 1 so orphaned grandchildren are reaped
+#    instead of accumulating as zombies. `sleep infinity` (our CMD) is
+#    not a real init: it ignores SIGCHLD, so any test fixture that
+#    forks-then-exits leaves /proc/PID around indefinitely and breaks
+#    Stop-VmProcessesUsingPath's `kill -0` liveness check.
 # -----------------------------------------------------------------------
 
 $Script:ImageName     = 'infra-ssh-test-image'
@@ -73,6 +78,7 @@ Write-Step 0 'starting SSH test container'
 docker rm -f $Script:ContainerName 2>&1 | Out-Null
 
 docker run -d --name $Script:ContainerName `
+    --init `
     -p 2222:22 `
     --add-host host.docker.internal:host-gateway `
     $Script:ImageName sleep infinity
