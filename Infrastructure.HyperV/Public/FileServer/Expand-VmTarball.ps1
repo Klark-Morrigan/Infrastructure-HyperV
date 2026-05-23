@@ -27,8 +27,16 @@
     primitive single-purpose and is what the integration test suite
     verifies.
 
-    Skip-unchanged via a SHA-256 marker file is layered on in the
-    follow-up step; this commit always extracts.
+    Skip-unchanged is gated by a marker file
+    (`<Destination>/.infra-hyperv-tarball.sha256`) that records the
+    SHA-256 of the source tarball bytes. The digest is computed
+    host-side once per call so the VM never has to read the whole
+    tarball back. On a match the remote script exits before any
+    `curl` / `tar` / `mv`. The marker is itself written into the
+    fresh tempdir before the final rename, so the dir-swap leaves
+    <Destination> in a state where the next call can short-circuit.
+    Pass -NoSkipUnchanged to force a re-extract (the marker is still
+    written, so subsequent default calls can short-circuit again).
 
     Path validation is host-side and runs before any staging or SSH:
     <Destination> must be a non-empty absolute path with no `..`
@@ -63,6 +71,14 @@
     0 (no stripping). Set to 1 to discard a single wrapper directory
     inside the tarball.
 
+.PARAMETER NoSkipUnchanged
+    Forces the extract path even when the on-VM marker file already
+    records the host-computed SHA-256 of the source tarball. Off by
+    default - the skip-unchanged branch produces identical observable
+    state at lower cost. Use this switch when callers want to be sure
+    the destination's mtime advances or when recovering from
+    out-of-band tampering inside <Destination>.
+
 .EXAMPLE
     Invoke-WithVmFileServer -VmIpAddress '10.10.0.50' -ScriptBlock {
         param($server)
@@ -93,7 +109,9 @@ function Expand-VmTarball {
         [string] $Destination,
 
         [Parameter()]
-        [int] $StripComponents = 0
+        [int] $StripComponents = 0,
+
+        [switch] $NoSkipUnchanged
     )
 
     # Host-side validation. Runs before any staging / SSH so malformed
@@ -132,24 +150,66 @@ function Expand-VmTarball {
         $SshClient.ConnectionInfo.Host
     } else { '(unknown)' }
 
+    # Host-side SHA-256 of the tarball bytes. Computed once per call so
+    # the VM never has to read the whole archive back; the digest is
+    # embedded as a bash literal in both the skip-unchanged check and
+    # the marker write. Lower-case hex matches the form that
+    # `sha256sum` would print, so future on-VM diagnostics can compare
+    # by eye.
+    $digest = (Get-FileHash -LiteralPath $TarballPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
     # Stage the tarball through the live file server. This must come
     # after host-side validation so a malformed Destination does not
     # leave a staged copy behind.
     $url = Add-VmFileServerFile -Server $Server -LocalPath $TarballPath
 
+    # The marker filename starts with a dot so `ls` inside <Destination>
+    # does not surface it by default, and the prefix namespaces it to
+    # this module so consumers can spot which tool owns it. The marker
+    # lives at the top level of <Destination> so the dir-swap moves it
+    # atomically with the rest of the tree.
+    $markerName = '.infra-hyperv-tarball.sha256'
+
+    # Skip-unchanged pre-check: if the marker file under <Destination>
+    # records the same digest as the source tarball, exit before any
+    # curl / tar / mv. Suppressed by -NoSkipUnchanged. The `sudo cat`
+    # reads the marker under privilege so the check works regardless
+    # of how the existing tree is permissioned. command-substitution
+    # strips a trailing newline from the marker, which matches how
+    # the marker is written (printf '%s\n').
+    $skipBlock = if ($NoSkipUnchanged) { '' } else {
+@"
+
+marker="`$destination/$markerName"
+if [ -f "`$marker" ]; then
+    existing_digest="`$(sudo cat "`$marker")"
+    if [ "`$existing_digest" = "`$desired_digest" ]; then
+        exit 0
+    fi
+fi
+"@
+    }
+
     # The mktemp template lives next to <Destination> (same filesystem)
     # so the final `mv` is a single rename inode operation rather than
     # a cross-device copy. The leading dot keeps the partial tree out
-    # of casual `ls` output while it is being populated.
+    # of casual `ls` output while it is being populated. The marker
+    # write goes into the fresh tempdir (no observer, no atomicity
+    # concern) so the helper's atomic-write tail would be overkill
+    # here - the dir-swap itself is what makes the marker land
+    # atomically alongside the new tree.
     $script = @"
 set -euo pipefail
 destination='$Destination'
 url='$url'
 strip='$StripComponents'
+desired_digest='$digest'
+marker_name='$markerName'
 parent="`$(dirname "`$destination")"
-sudo mkdir -p "`$parent"
+sudo mkdir -p "`$parent"$skipBlock
 tmpdir="`$(sudo mktemp -d "`$parent/.expand.XXXXXX")"
 curl -fsSL "`$url" | sudo tar -xzf - -C "`$tmpdir" --strip-components="`$strip"
+printf '%s\n' "`$desired_digest" | sudo tee "`$tmpdir/`$marker_name" >/dev/null
 if [ -e "`$destination" ] || [ -L "`$destination" ]; then
     sudo rm -rf -- "`$destination"
 fi

@@ -276,6 +276,120 @@ Describe 'Expand-VmTarball' {
         }
     }
 
+    Context 'skip-unchanged marker (default)' {
+
+        # The marker pre-check is the headline behaviour of this step.
+        # Asserted via emitted-script inspection because the actual
+        # short-circuit happens VM-side - the mocked SSH call cannot
+        # observe whether bash chose the early-exit branch.
+
+        It 'embeds the host-computed SHA-256 of the tarball bytes' {
+            $expected = (Get-FileHash -LiteralPath $script:FakeTarball `
+                -Algorithm SHA256).Hash.ToLowerInvariant()
+
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                $Command -match "desired_digest='$expected'"
+            }
+        }
+
+        It 'emits the marker pre-check that exits 0 on a digest match' {
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                $Command -match 'marker="\$destination/\.infra-hyperv-tarball\.sha256"' -and
+                $Command -match 'if \[ -f "\$marker" \]; then[\s\S]*existing_digest="\$\(sudo cat "\$marker"\)"[\s\S]*if \[ "\$existing_digest" = "\$desired_digest" \]; then[\s\S]*exit 0'
+            }
+        }
+
+        It 'writes the marker file inside the tempdir before the rename' {
+            $script:captured = $null
+            Mock Invoke-SshClientCommand {
+                $script:captured = $Command
+                [PSCustomObject]@{ ExitStatus = 0; Output = ''; Error = '' }
+            }
+
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            $script:captured |
+                Should -Match 'printf ''%s\\n'' "\$desired_digest" \| sudo tee "\$tmpdir/\$marker_name" >/dev/null'
+
+            # Ordering: marker write must precede the final mv so the
+            # dir-swap lands the marker alongside the tree.
+            $markerIdx = $script:captured.IndexOf('sudo tee "$tmpdir/$marker_name"')
+            $mvIdx     = $script:captured.IndexOf('sudo mv "$tmpdir" "$destination"')
+            $markerIdx | Should -BeGreaterThan 0
+            $mvIdx     | Should -BeGreaterThan $markerIdx
+        }
+
+        It 'computes the SHA-256 once per call' {
+            Mock Get-FileHash -MockWith {
+                [PSCustomObject]@{ Hash = 'ABCDEF0123456789' }
+            }
+
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            Should -Invoke Get-FileHash -Times 1 -Exactly -ParameterFilter {
+                $LiteralPath -eq $script:FakeTarball -and $Algorithm -eq 'SHA256'
+            }
+        }
+
+        It 'lower-cases the host-computed digest' {
+            Mock Get-FileHash -MockWith {
+                [PSCustomObject]@{ Hash = 'ABCDEF0123456789' }
+            }
+
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                $Command -match "desired_digest='abcdef0123456789'"
+            }
+        }
+    }
+
+    Context '-NoSkipUnchanged' {
+
+        It 'omits the marker pre-check from the emitted script' {
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21' `
+                -NoSkipUnchanged
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                $Command -notmatch 'if \[ -f "\$marker" \]'
+            }
+        }
+
+        It 'still writes the marker file inside the tempdir' {
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21' `
+                -NoSkipUnchanged
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                $Command -match 'sudo tee "\$tmpdir/\$marker_name"'
+            }
+        }
+    }
+
     Context 'line-ending normalisation' {
 
         It 'emits no CR bytes in the command' {
