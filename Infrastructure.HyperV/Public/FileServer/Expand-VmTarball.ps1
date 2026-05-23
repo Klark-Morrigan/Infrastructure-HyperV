@@ -172,20 +172,25 @@ function Expand-VmTarball {
 
     # Skip-unchanged pre-check: if the marker file under <Destination>
     # records the same digest as the source tarball, exit before any
-    # curl / tar / mv. Suppressed by -NoSkipUnchanged. The `sudo cat`
-    # reads the marker under privilege so the check works regardless
-    # of how the existing tree is permissioned. command-substitution
+    # curl / tar / mv. Suppressed by -NoSkipUnchanged.
+    #
+    # Both the existence test AND the read happen under sudo because
+    # the destination dir inherits mktemp's 0700 root mode from the
+    # previous extract - a plain `[ -f ]` would silently return false
+    # for any non-root caller (no search permission on the parent),
+    # and skip-unchanged would never fire. Routing the read through
+    # `sudo cat 2>/dev/null || true` doubles as the existence test:
+    # a missing-or-unreadable marker yields an empty string, which
+    # the digest comparison treats as "no match". command-substitution
     # strips a trailing newline from the marker, which matches how
     # the marker is written (printf '%s\n').
     $skipBlock = if ($NoSkipUnchanged) { '' } else {
 @"
 
 marker="`$destination/$markerName"
-if [ -f "`$marker" ]; then
-    existing_digest="`$(sudo cat "`$marker")"
-    if [ "`$existing_digest" = "`$desired_digest" ]; then
-        exit 0
-    fi
+existing_digest="`$(sudo cat "`$marker" 2>/dev/null || true)"
+if [ -n "`$existing_digest" ] && [ "`$existing_digest" = "`$desired_digest" ]; then
+    exit 0
 fi
 "@
     }
