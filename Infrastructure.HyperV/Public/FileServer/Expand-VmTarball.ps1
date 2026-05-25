@@ -215,6 +215,12 @@ sudo mkdir -p "`$parent"$skipBlock
 tmpdir="`$(sudo mktemp -d "`$parent/.expand.XXXXXX")"
 curl -fsSL "`$url" | sudo tar -xzf - -C "`$tmpdir" --strip-components="`$strip"
 printf '%s\n' "`$desired_digest" | sudo tee "`$tmpdir/`$marker_name" >/dev/null
+# mktemp -d defaults to 0700 on the tempdir, which would persist
+# through the mv and leave the install dir unreachable to non-root
+# users. Tooling under /usr/local/bin (the JDK symlinks etc.) needs
+# at least traverse on the install dir, so widen to 0755 before the
+# swap. Tarball-internal entries keep their own modes from the tar.
+sudo chmod 0755 "`$tmpdir"
 if [ -e "`$destination" ] || [ -L "`$destination" ]; then
     sudo rm -rf -- "`$destination"
 fi
