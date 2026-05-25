@@ -100,6 +100,29 @@ Describe 'Expand-VmTarball' {
             }
         }
 
+        It 'widens tmpdir to 0755 BEFORE the rename so the install dir is traversable for non-root' {
+            # mktemp -d defaults to 0700, which would carry over to the
+            # install dir and lock out non-root processes (/usr/local/bin/
+            # symlinks unreachable, JDK java binary not runnable). The
+            # chmod 0755 must run after the extract but before the mv so
+            # the swap is atomic with the wider mode.
+            Expand-VmTarball -SshClient $script:FakeSshClient `
+                -Server $script:FakeServer `
+                -TarballPath $script:FakeTarball `
+                -Destination '/opt/jdk-21'
+
+            Should -Invoke Invoke-SshClientCommand -ParameterFilter {
+                # 0755 chmod present AND ordered after the curl|tar pipe
+                # AND before the mv.
+                $cmd = $Command
+                $cmd -match 'sudo chmod 0755 "\$tmpdir"' -and
+                $cmd.IndexOf('sudo chmod 0755') -gt
+                    $cmd.IndexOf('sudo tar -xzf') -and
+                $cmd.IndexOf('sudo chmod 0755') -lt
+                    $cmd.IndexOf('sudo mv "$tmpdir"')
+            }
+        }
+
         It 'embeds Destination as a single-quoted bash assignment' {
             Expand-VmTarball -SshClient $script:FakeSshClient `
                 -Server $script:FakeServer `
