@@ -3,7 +3,7 @@
     Hyper-V VM utilities for infrastructure repos.
 
 .DESCRIPTION
-    Provides VM-facing functions extracted from Infrastructure.Common to
+    Provides VM-facing functions extracted from PowerShell.Common to
     keep each module cohesive and single-purpose. All functions in this
     module assume a Hyper-V VM on an internal switch that the host can
     reach over SSH or HTTP.

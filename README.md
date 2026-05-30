@@ -16,7 +16,7 @@ server) for infrastructure repos.
 
 ## Overview
 
-This module is extracted from `Infrastructure.Common` to give Hyper-V-specific
+This module is extracted from `PowerShell.Common` to give Hyper-V-specific
 functions their own cohesion boundary. Everything in here assumes a Hyper-V VM
 sitting on an internal switch that the Windows host can reach over SSH or HTTP.
 It is published to PSGallery and consumed by other repos.
@@ -70,24 +70,24 @@ Import-Module Infrastructure.HyperV
 
 ### Prerequisites
 
-Clone `Infrastructure-Common` at `.ci-common` once before running any local
+Clone `PowerShell-Common` at `.ci-common` once before running any local
 test runner:
 
 ```powershell
-git clone https://github.com/VitaliiAndreev/Infrastructure-Common .ci-common
+git clone https://github.com/VitaliiAndreev/PowerShell-Common .ci-common
 ```
 
 ### Running Tests
 
 ```powershell
 # Unit tests
-.\Run-Tests.ps1
+.\scripts\Run-Tests.ps1
 
 # Integration tests (Docker host)
-.\Run-IntegrationTests-InDocker.ps1
+.\scripts\Run-IntegrationTests-InDocker.ps1
 
 # Integration tests (Docker SSH target)
-.\Run-IntegrationTests-AgainstDockerTarget.ps1
+.\scripts\Run-IntegrationTests-AgainstDockerTarget.ps1
 ```
 
 ### CI

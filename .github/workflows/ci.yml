@@ -7,4 +7,4 @@ on:
 
 jobs:
   ci:
-    uses: VitaliiAndreev/Infrastructure-Common/.github/workflows/ci-powershell.yml@master
+    uses: VitaliiAndreev/PowerShell-Common/.github/workflows/ci-powershell.yml@master
