@@ -25,7 +25,7 @@ It is published to PSGallery and consumed by other repos.
 
 | Function | Description |
 |---|---|
-| `New-VmSshClient` | Creates and connects a `Renci.SshNet.SshClient` using password authentication. Caller owns Disconnect/Dispose. |
+| `New-VmSshClient` | Creates and connects a `Renci.SshNet.SshClient` using password authentication. Caller owns Disconnect/Dispose. `-Timeout` (default 30s) caps the total Connect() wall-clock; the Connect runs on a background `Task` so a progress dot is emitted every `-ProgressInterval` (default 5s) - long waits don't look like a hang. |
 | `Invoke-SshClientCommand` | Runs a shell command on a connected `SshClient` and returns `{ Output, Error, ExitStatus }`. |
 | `Test-VmSshPort` | Single-shot TCP probe of an SSH port. Returns `$true` if the port accepted a connection within the timeout; strict superset of an ICMP ping for "should I SSH?". |
 | `Wait-VmSshReady` | Polls `Test-VmSshPort` until the port comes up or a deadline expires. Returns `$true` on success, `$false` on timeout - never throws on the network path. |
@@ -62,7 +62,7 @@ way to do that. The module fails fast with an actionable message otherwise.
 ## Usage
 
 ```powershell
-Install-Module -Name Infrastructure.HyperV -MinimumVersion 0.9.3
+Install-Module -Name Infrastructure.HyperV -MinimumVersion 0.10.0
 Import-Module Infrastructure.HyperV
 ```
 
