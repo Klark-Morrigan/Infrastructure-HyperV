@@ -19,6 +19,7 @@
         'Copy-VmFiles',
         'Copy-VmFilesByPattern',
         'Expand-VmTarball',
+        'Get-VmSwitchHostIp',
         'Invoke-SshClientCommand',
         'Invoke-WithVmFileServer',
         'New-VmSshClient',

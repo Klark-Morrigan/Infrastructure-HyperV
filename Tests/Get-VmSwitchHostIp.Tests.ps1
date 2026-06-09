@@ -1,5 +1,5 @@
 BeforeAll {
-    . "$PSScriptRoot\..\Infrastructure.HyperV\Private\FileServer\Get-VmSwitchHostIp.ps1"
+    . "$PSScriptRoot\..\Infrastructure.HyperV\Public\FileServer\Get-VmSwitchHostIp.ps1"
 }
 
 Describe 'Get-VmSwitchHostIp' {
