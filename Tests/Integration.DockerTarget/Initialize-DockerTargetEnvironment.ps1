@@ -60,14 +60,14 @@ if ($existingImage) {
 } else {
     Write-Step 0 'building SSH test image'
     # $PSScriptRoot = <repo>\Tests\Integration.DockerTarget; three parents
-    # up is the shared repos root that hosts GitHub-Common as a sibling.
+    # up is the shared repos root that hosts Common-Automation as a sibling.
     $reposRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
     $dockerfileDir = [IO.Path]::Combine(
-        $reposRoot, 'GitHub-Common',
+        $reposRoot, 'Common-Automation',
         '.github', 'actions', 'build-ssh-test-image')
     if (-not (Test-Path $dockerfileDir)) {
-        throw ("GitHub-Common Dockerfile not found at $dockerfileDir. " +
-               'Expected GitHub-Common to be checked out as a sibling of this repo.')
+        throw ("Common-Automation Dockerfile not found at $dockerfileDir. " +
+               'Expected Common-Automation to be checked out as a sibling of this repo.')
     }
     $buildOutput = docker build -t $Script:ImageName $dockerfileDir 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -196,21 +196,21 @@ if ($LASTEXITCODE -ne 0) {
 
 # -----------------------------------------------------------------------
 # 4. Install host-side modules
-#    PowerShell.Common is a runtime dependency of HyperV's public
+#    Common.PowerShell is a runtime dependency of HyperV's public
 #    functions (Invoke-ModuleInstall, etc). HyperV itself is imported
 #    from the local source tree under test, NOT from PSGallery, so the
 #    integration suite exercises the in-tree code. Posh-SSH carries the
 #    SSH.NET assembly that Invoke-SshClientCommand uses.
 # -----------------------------------------------------------------------
 
-Write-Step 4 'installing PowerShell.Common'
-$_ic = Get-Module -ListAvailable PowerShell.Common |
+Write-Step 4 'installing Common.PowerShell'
+$_ic = Get-Module -ListAvailable Common.PowerShell |
     Where-Object { $_.Version -ge [Version]'5.1.0' } | Select-Object -First 1
 if (-not $_ic) {
-    Install-Module PowerShell.Common -MinimumVersion '5.1.0' `
+    Install-Module Common.PowerShell -MinimumVersion '5.1.0' `
         -Scope CurrentUser -Force -SkipPublisherCheck -ErrorAction Stop
 }
-Import-Module PowerShell.Common -Force -ErrorAction Stop
+Import-Module Common.PowerShell -Force -ErrorAction Stop
 
 Write-Step 4 'importing Infrastructure.HyperV from local source'
 $Script:HyperVModuleManifest = [IO.Path]::Combine(

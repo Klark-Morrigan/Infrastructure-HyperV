@@ -23,7 +23,7 @@ server) for infrastructure repos.
 
 ## Overview
 
-This module is extracted from `PowerShell.Common` to give Hyper-V-specific
+This module is extracted from `Common.PowerShell` to give Hyper-V-specific
 functions their own cohesion boundary. Everything in here assumes a Hyper-V VM
 sitting on an internal switch that the Windows host can reach over SSH or HTTP.
 It is published to PSGallery and consumed by other repos.
@@ -128,11 +128,11 @@ Import-Module Infrastructure.HyperV
 
 ### Prerequisites
 
-Clone `PowerShell-Common` at `.ci-common` once before running any local
+Clone `Common-PowerShell` at `.ci-common` once before running any local
 test runner:
 
 ```powershell
-git clone https://github.com/VitaliiAndreev/PowerShell-Common .ci-common
+git clone https://github.com/VitaliiAndreev/Common-PowerShell .ci-common
 ```
 
 ### Running Tests

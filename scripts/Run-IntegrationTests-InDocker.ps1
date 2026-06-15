@@ -3,10 +3,10 @@
     Runs integration tests for the Infrastructure.HyperV module in Docker.
 
 .DESCRIPTION
-    Delegates to the shared Run-IntegrationTests.ps1 in PowerShell-Common.
-    PowerShell-Common must be checked out at .ci-common before
+    Delegates to the shared Run-IntegrationTests.ps1 in Common-PowerShell.
+    Common-PowerShell must be checked out at .ci-common before
     running this script locally:
-        git clone https://github.com/VitaliiAndreev/PowerShell-Common .ci-common
+        git clone https://github.com/VitaliiAndreev/Common-PowerShell .ci-common
 
 .PARAMETER DockerImage
     Docker image to run tests in. Defaults to
