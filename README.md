@@ -204,10 +204,16 @@ to LF and `*.bat` to CRLF - Linux CI runners reject CRLF shebangs.
 
 ### Release
 
-Pushing a change to `Infrastructure.HyperV/Infrastructure.HyperV.psd1` on
-`master` with a new `ModuleVersion` triggers `release.yml`, which:
+Releases are CHANGELOG.md-driven. To ship a version: promote the
+[`[Unreleased]`](CHANGELOG.md) section in [CHANGELOG.md](CHANGELOG.md) to the
+new version + date, bump `ModuleVersion` in
+`Infrastructure.HyperV/Infrastructure.HyperV.psd1` to match, and merge to
+`master`. The manifest change triggers `release.yml`, which:
 
-1. Checks the version is new.
-2. Runs all three CI workflows.
-3. Tags the commit via Common's `tag.yml`.
-4. Publishes to PSGallery via Common's `publish.yml`.
+1. Checks the version is new (`check-version-is-new`).
+2. Asserts the manifest version matches the top CHANGELOG.md section
+   (`assert-changelog-version`) - the release fails here if notes are
+   missing, so they can never lag the release.
+3. Runs all three CI workflows.
+4. Tags, publishes to PSGallery, and cuts a GitHub Release (with notes
+   from CHANGELOG.md) via Common's `release-tail.yml`.

@@ -23,6 +23,15 @@ jobs:
         with:
           psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
 
+      # Gate the release on the manifest and changelog agreeing. A new
+      # version that has not been promoted in CHANGELOG.md fails here,
+      # before any tag or publish, so notes can never lag the release.
+      - if: steps.check.outputs.version_is_new == 'true'
+        uses: VitaliiAndreev/Common-PowerShell/.github/actions/assert-changelog-version@master
+        with:
+          psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
+          changelog: CHANGELOG.md
+
   test-unit:
     needs: check-version
     if: needs.check-version.outputs.version_is_new == 'true'
@@ -38,20 +47,17 @@ jobs:
     if: needs.check-version.outputs.version_is_new == 'true'
     uses: VitaliiAndreev/Common-PowerShell/.github/workflows/ci-powershell-docker-target.yml@master
 
-  tag:
+  # Tag, publish to PSGallery, and cut the GitHub Release in one shared
+  # back-end workflow - see release-tail.yml in Common-PowerShell.
+  release-tail:
     needs: [ check-version, test-unit, test-integration-host, test-integration-target ]
     if: needs.check-version.outputs.version_is_new == 'true'
     permissions:
       contents: write
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/tag.yml@master
+    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/release-tail.yml@master
     with:
       psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
-
-  publish:
-    needs: tag
-    if: needs.tag.outputs.tag_created == 'true'
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/publish.yml@master
-    with:
       module-path: Infrastructure.HyperV
+      changelog: CHANGELOG.md
     secrets:
       PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
