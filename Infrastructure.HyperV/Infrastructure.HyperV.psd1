@@ -40,4 +40,14 @@
     )
     CmdletsToExport   = @()
     AliasesToExport   = @()
+    # PSData surfaces the project/license links and release notes on the
+    # PowerShell Gallery package page, giving the listing a link back to
+    # the source repository.
+    PrivateData = @{
+        PSData = @{
+            ProjectUri   = 'https://github.com/VitaliiAndreev/Infrastructure-HyperV'
+            LicenseUri   = 'https://github.com/VitaliiAndreev/Infrastructure-HyperV/blob/master/LICENSE'
+            ReleaseNotes = 'https://github.com/VitaliiAndreev/Infrastructure-HyperV/releases'
+        }
+    }
 }
