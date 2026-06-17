@@ -12,6 +12,11 @@ history and the tag list.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-17
+
+### Changed
+- Major version bump; no functional changes (version realignment).
+
 ## [0.11.0] - 2026-06-09
 
 ### Added
@@ -30,5 +35,6 @@ history and the tag list.
   `Set-VmEnvironmentVariables`, `Remove-VmDirectory`, ...). See the README
   function reference for the full list.
 
-[Unreleased]: https://github.com/VitaliiAndreev/Infrastructure-HyperV/compare/0.11.0...HEAD
-[0.11.0]: https://github.com/VitaliiAndreev/Infrastructure-HyperV/compare/0.10.1...0.11.0
+[Unreleased]: https://github.com/Klark-Morrigan/Infrastructure-HyperV/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/Klark-Morrigan/Infrastructure-HyperV/compare/0.11.0...1.0.0
+[0.11.0]: https://github.com/Klark-Morrigan/Infrastructure-HyperV/compare/0.10.1...0.11.0

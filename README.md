@@ -133,7 +133,7 @@ Clone `Common-PowerShell` at `.ci-common` once before running any local
 test runner:
 
 ```powershell
-git clone https://github.com/VitaliiAndreev/Common-PowerShell .ci-common
+git clone https://github.com/Klark-Morrigan/Common-PowerShell .ci-common
 ```
 
 ### Running Tests

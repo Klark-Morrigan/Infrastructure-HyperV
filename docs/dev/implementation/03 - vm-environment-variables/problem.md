@@ -17,8 +17,8 @@
 and the shared schema validator
 [Assert-VmFilesField](../../../../Infrastructure.HyperV/Public/FileTransfer/Assert-VmFilesField.ps1).
 Multiple downstream repos
-([Infrastructure-Vm-Provisioner](https://github.com/VitaliiAndreev/Infrastructure-Vm-Provisioner),
-[Infrastructure-Vm-Users](https://github.com/VitaliiAndreev/Infrastructure-Vm-Users))
+([Infrastructure-Vm-Provisioner](https://github.com/Klark-Morrigan/Infrastructure-Vm-Provisioner),
+[Infrastructure-Vm-Users](https://github.com/Klark-Morrigan/Infrastructure-Vm-Users))
 funnel through that transport.
 
 [Install-Jdk](../../../../../Infrastructure-Vm-Provisioner/hyper-v/ubuntu/up/post/Install-Jdk.ps1)
