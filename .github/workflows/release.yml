@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: check
-        uses: VitaliiAndreev/Common-PowerShell/.github/actions/check-version-is-new@master
+        uses: Klark-Morrigan/Common-PowerShell/.github/actions/check-version-is-new@master
         with:
           psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
 
@@ -27,7 +27,7 @@ jobs:
       # version that has not been promoted in CHANGELOG.md fails here,
       # before any tag or publish, so notes can never lag the release.
       - if: steps.check.outputs.version_is_new == 'true'
-        uses: VitaliiAndreev/Common-PowerShell/.github/actions/assert-changelog-version@master
+        uses: Klark-Morrigan/Common-PowerShell/.github/actions/assert-changelog-version@master
         with:
           psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
           changelog: CHANGELOG.md
@@ -35,17 +35,17 @@ jobs:
   test-unit:
     needs: check-version
     if: needs.check-version.outputs.version_is_new == 'true'
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/ci-powershell.yml@master
+    uses: Klark-Morrigan/Common-PowerShell/.github/workflows/ci-powershell.yml@master
 
   test-integration-host:
     needs: check-version
     if: needs.check-version.outputs.version_is_new == 'true'
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/ci-powershell-docker-host.yml@master
+    uses: Klark-Morrigan/Common-PowerShell/.github/workflows/ci-powershell-docker-host.yml@master
 
   test-integration-target:
     needs: check-version
     if: needs.check-version.outputs.version_is_new == 'true'
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/ci-powershell-docker-target.yml@master
+    uses: Klark-Morrigan/Common-PowerShell/.github/workflows/ci-powershell-docker-target.yml@master
 
   # Tag, publish to PSGallery, and cut the GitHub Release in one shared
   # back-end workflow - see release-tail.yml in Common-PowerShell.
@@ -54,7 +54,7 @@ jobs:
     if: needs.check-version.outputs.version_is_new == 'true'
     permissions:
       contents: write
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/release-tail.yml@master
+    uses: Klark-Morrigan/Common-PowerShell/.github/workflows/release-tail.yml@master
     with:
       psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
       module-path: Infrastructure.HyperV

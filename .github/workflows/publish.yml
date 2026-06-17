@@ -14,7 +14,7 @@ on:
 
 jobs:
   publish:
-    uses: VitaliiAndreev/Common-PowerShell/.github/workflows/publish.yml@master
+    uses: Klark-Morrigan/Common-PowerShell/.github/workflows/publish.yml@master
     with:
       module-path: ${{ inputs.module-path }}
     secrets:

@@ -1,7 +1,7 @@
 @{
-    ModuleVersion        = '0.11.0'
+    ModuleVersion        = '1.0.0'
     GUID                 = 'c4a9d3e2-8b1f-4d7a-9e3c-5f2b8a1d4c6e'
-    Author               = 'Vitaly Andrev'
+    Author               = 'Klark Morrigan'
     Description          = 'Hyper-V VM utilities (SSH, host file server) for infrastructure repos.'
     PowerShellVersion    = '7.0'
     CompatiblePSEditions = @('Core')
@@ -40,4 +40,14 @@
     )
     CmdletsToExport   = @()
     AliasesToExport   = @()
+    # PSData surfaces the project/license links and release notes on the
+    # PowerShell Gallery package page, giving the listing a link back to
+    # the source repository.
+    PrivateData = @{
+        PSData = @{
+            ProjectUri   = 'https://github.com/Klark-Morrigan/Infrastructure-HyperV'
+            LicenseUri   = 'https://github.com/Klark-Morrigan/Infrastructure-HyperV/blob/master/LICENSE'
+            ReleaseNotes = 'https://github.com/Klark-Morrigan/Infrastructure-HyperV/releases'
+        }
+    }
 }
