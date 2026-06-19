@@ -15,10 +15,12 @@ jobs:
     outputs:
       version_is_new: ${{ steps.check.outputs.version_is_new }}
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out repository
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - id: check
+      - name: Check version is new
+        id: check
         uses: Klark-Morrigan/Common-PowerShell/.github/actions/check-version-is-new@master
         with:
           psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
@@ -26,7 +28,8 @@ jobs:
       # Gate the release on the manifest and changelog agreeing. A new
       # version that has not been promoted in CHANGELOG.md fails here,
       # before any tag or publish, so notes can never lag the release.
-      - if: steps.check.outputs.version_is_new == 'true'
+      - name: Assert changelog version
+        if: steps.check.outputs.version_is_new == 'true'
         uses: Klark-Morrigan/Common-PowerShell/.github/actions/assert-changelog-version@master
         with:
           psd1: 'Infrastructure.HyperV\Infrastructure.HyperV.psd1'
