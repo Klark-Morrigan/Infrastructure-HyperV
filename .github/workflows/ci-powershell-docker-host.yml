@@ -5,7 +5,6 @@ name: CI (Docker host)
 # and so release.yml can call it via workflow_call.
 on:
   pull_request:
-    branches: [ main, master ]
   workflow_call:
   workflow_dispatch:
 
