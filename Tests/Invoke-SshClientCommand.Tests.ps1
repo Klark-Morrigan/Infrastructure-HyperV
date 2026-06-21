@@ -12,12 +12,14 @@ BeforeAll {
     function New-FakeClient {
         param(
             [string] $Result     = '',
-            [string] $Error      = '',
+            # Named $ErrorText, not $Error: $Error is a read-only automatic
+            # variable and assigning a parameter to it is a binder error.
+            [string] $ErrorText  = '',
             [int]    $ExitStatus = 0
         )
         $fakeResult = [PSCustomObject]@{
             Result     = $Result
-            Error      = $Error
+            Error      = $ErrorText
             ExitStatus = $ExitStatus
         }
         $client = [PSCustomObject]@{}
@@ -39,7 +41,7 @@ Describe 'Invoke-SshClientCommand' {
         }
 
         It 'maps Error to Error' {
-            $r = Invoke-SshClientCommand -SshClient (New-FakeClient -Error 'oops') -Command 'bad'
+            $r = Invoke-SshClientCommand -SshClient (New-FakeClient -ErrorText 'oops') -Command 'bad'
             $r.Error | Should -Be 'oops'
         }
 
@@ -60,7 +62,7 @@ Describe 'Invoke-SshClientCommand' {
 
         It 'maps all three fields correctly when all are populated' {
             $r = Invoke-SshClientCommand `
-                -SshClient (New-FakeClient -Result 'out' -Error 'err' -ExitStatus 2) `
+                -SshClient (New-FakeClient -Result 'out' -ErrorText 'err' -ExitStatus 2) `
                 -Command 'cmd'
             $r.Output     | Should -Be 'out'
             $r.Error      | Should -Be 'err'
