@@ -155,6 +155,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Private\PsModules\Assert-PsModuleLoaded.ps1"
 
 . "$PSScriptRoot\Private\Ssh\Assert-SshNetLoaded.ps1"
+. "$PSScriptRoot\Private\Ssh\Set-SshClientKeepAlive.ps1"
 
 # Public functions:
 
@@ -195,8 +196,8 @@ $ErrorActionPreference = 'Stop'
 # It takes precedence over FunctionsToExport in the psd1 at runtime, so both
 # must be kept in sync. FunctionsToExport serves a separate purpose: it is
 # read by Get-Module -ListAvailable, Find-Module, and PSGallery for fast
-# discovery without loading the module. The shared Module.Tests.ps1 in the
-# run-unit-tests action enforces that every Public\*.ps1 file appears in both.
+# discovery without loading the module. Every Public\*.ps1 file must appear
+# in both this list and FunctionsToExport.
 Export-ModuleMember -Function @(
     'Add-VmFileServerFile',
     'Assert-VmEnvVarsField',

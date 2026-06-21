@@ -25,6 +25,16 @@
 #   "this may take a few minutes" line so the silence does not read
 #   like a hang.
 #
+#   -KeepAliveInterval arms SSH.NET's keepalive timer so a long-lived
+#   session survives the idle gaps between commands on a path where a NAT
+#   or firewall middlebox would otherwise silently reap an idle-looking
+#   connection. Defaults to 15s; pass [TimeSpan]::Zero to opt out.
+#
+#   -Port selects the TCP port (default 22). It lets a caller reach an
+#   sshd published on a non-standard port - e.g. a jump tunnel's ephemeral
+#   loopback forward - through this one helper, so the connect/keepalive
+#   policy is not re-implemented at each call site.
+#
 #   Security:
 #   - SSH.NET accepts any host key by default (no HostKeyReceived handler).
 #     Equivalent to Posh-SSH's -AcceptKey. Acceptable on a private Hyper-V
@@ -57,21 +67,38 @@ function New-VmSshClient {
         [Parameter(Mandatory)]
         [string] $Password,
 
+        # TCP port sshd is reachable on. Defaults to 22; callers connecting
+        # through a local-forward tunnel pass the ephemeral loopback port.
+        [int] $Port = 22,
+
         # Total Connect() wall-clock budget. Default 30s matches SSH.NET's
         # built-in default so existing callers are unaffected. Callers
         # waiting on a slow server-side responder (e.g. provisioning,
         # where sshd is ordered after cloud-config) pass a generous value.
-        [TimeSpan] $Timeout = [TimeSpan]::FromSeconds(30)
+        [TimeSpan] $Timeout = [TimeSpan]::FromSeconds(30),
+
+        # SSH-level keepalive interval for the connected client. SSH.NET
+        # sends a keepalive global-request every interval, which keeps a
+        # long-lived session alive across the idle gaps between commands:
+        # a NAT or firewall middlebox on the host<->VM path can otherwise
+        # drop an idle-looking connection, surfacing mid-command as
+        # "connection aborted by the server". Defaults to 15s, comfortably
+        # under common middlebox idle timeouts; pass [TimeSpan]::Zero to
+        # disable (restoring SSH.NET's no-keepalive default).
+        [TimeSpan] $KeepAliveInterval = [TimeSpan]::FromSeconds(15)
     )
 
     Assert-SshNetLoaded
 
     $auth     = [Renci.SshNet.PasswordAuthenticationMethod]::new($Username, $Password)
-    $connInfo = [Renci.SshNet.ConnectionInfo]::new($IpAddress, $Username, @($auth))
+    $connInfo = [Renci.SshNet.ConnectionInfo]::new($IpAddress, $Port, $Username, @($auth))
     # SSH.NET applies ConnectionInfo.Timeout to both the TCP socket read
     # and the KEX exchange.
     $connInfo.Timeout = $Timeout
     $client   = [Renci.SshNet.SshClient]::new($connInfo)
+    # Arm keepalive before Connect so the timer starts with the session.
+    # The disabled-on-non-positive policy lives in Set-SshClientKeepAlive.
+    Set-SshClientKeepAlive -Client $client -Interval $KeepAliveInterval
     $client.Connect()
     $client
 }

@@ -44,7 +44,14 @@ function New-VmSshClientWithJump {
         # finishing - same posture Invoke-VmPostProvisioning uses for
         # the direct case.
         [Parameter()]
-        [TimeSpan] $Timeout = [TimeSpan]::FromSeconds(30)
+        [TimeSpan] $Timeout = [TimeSpan]::FromSeconds(30),
+
+        # SSH-level keepalive interval applied to whichever client this
+        # returns (direct or jumped). Forwarded to New-VmSshClient on the
+        # direct path and set on the tunnelled client on the jump path so
+        # both legs share the same liveness posture. Defaults to 15s; pass
+        # [TimeSpan]::Zero to disable. See New-VmSshClient for rationale.
+        [TimeSpan] $KeepAliveInterval = [TimeSpan]::FromSeconds(15)
     )
 
     Assert-SshNetLoaded
@@ -55,10 +62,11 @@ function New-VmSshClientWithJump {
     $hasRouter = $Vm.PSObject.Properties['_RouterVm'] -and $Vm._RouterVm
     if (-not $hasRouter) {
         $client = New-VmSshClient `
-                      -IpAddress $Vm.ipAddress `
-                      -Username  $Vm.username `
-                      -Password  $Vm.password `
-                      -Timeout   $Timeout
+                      -IpAddress         $Vm.ipAddress `
+                      -Username          $Vm.username `
+                      -Password          $Vm.password `
+                      -Timeout           $Timeout `
+                      -KeepAliveInterval $KeepAliveInterval
 
         $session = [PSCustomObject]@{ Client = $client; Tunnel = $null }
         Add-Member -InputObject $session `
@@ -79,20 +87,19 @@ function New-VmSshClientWithJump {
                   -JumpPassword $Vm._RouterVm.password `
                   -JumpConnectTimeout $Timeout
 
-    # Connect a fresh SshClient to the tunnel's loopback endpoint with
-    # the workload's credentials. Constructed directly (bypassing
-    # New-VmSshClient) because New-VmSshClient does not expose a
-    # -Port parameter; the workload listens on 22 inside its NIC, but
-    # the local-forward endpoint is on an ephemeral host port.
+    # Connect to the tunnel's loopback endpoint with the workload's
+    # credentials, routing through the same New-VmSshClient helper as the
+    # direct path: the workload listens on 22 inside its NIC, but the
+    # local-forward endpoint is on an ephemeral host port, which -Port
+    # selects. This keeps the connect/keepalive policy in one place.
     try {
-        $auth     = [Renci.SshNet.PasswordAuthenticationMethod]::new(
-            $Vm.username, $Vm.password)
-        $connInfo = [Renci.SshNet.ConnectionInfo]::new(
-            $tunnel.LocalHost, [int]$tunnel.LocalPort,
-            $Vm.username, @($auth))
-        $connInfo.Timeout = $Timeout
-        $client = [Renci.SshNet.SshClient]::new($connInfo)
-        $client.Connect()
+        $client = New-VmSshClient `
+                      -IpAddress         $tunnel.LocalHost `
+                      -Port              ([int]$tunnel.LocalPort) `
+                      -Username          $Vm.username `
+                      -Password          $Vm.password `
+                      -Timeout           $Timeout `
+                      -KeepAliveInterval $KeepAliveInterval
     }
     catch {
         # Tunnel survives until we know the client connect succeeded;

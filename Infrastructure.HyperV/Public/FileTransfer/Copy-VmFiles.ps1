@@ -101,7 +101,7 @@ function Copy-VmFiles {
         # via ContainsKey (NOT via PSObject.Properties); PSCustomObjects
         # do the opposite. A plain `$entry.Owner` would also throw under
         # Set-StrictMode -Version Latest when the property is absent on a
-        # PSCustomObject (Pester unit tests enable strict mode).
+        # PSCustomObject.
         $hasOwner = if ($entry -is [hashtable]) { $entry.ContainsKey('Owner') }
                     else { $null -ne $entry.PSObject.Properties['Owner'] }
         $hasMode  = if ($entry -is [hashtable]) { $entry.ContainsKey('Mode') }

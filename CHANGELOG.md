@@ -12,6 +12,22 @@ history and the tag list.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-21
+
+### Added
+- `New-VmSshClient` and `New-VmSshClientWithJump` now accept a
+  `-KeepAliveInterval` parameter (default 15s) that arms SSH.NET's
+  keepalive timer. Keeps a long-lived session alive across the idle gaps
+  between commands, where a NAT or firewall middlebox on the host<->VM
+  path could otherwise drop an idle-looking connection and surface
+  mid-command as "connection aborted by the server". Pass
+  `[TimeSpan]::Zero` to restore the previous no-keepalive behaviour.
+- `New-VmSshClient` now accepts an optional `-Port` parameter (default
+  22). `New-VmSshClientWithJump`'s tunnelled path uses it to reach the
+  local-forward's ephemeral loopback port through the shared helper
+  instead of hand-building a `ConnectionInfo`, so the connect/keepalive
+  policy has a single home.
+
 ## [1.0.0] - 2026-06-17
 
 ### Changed
