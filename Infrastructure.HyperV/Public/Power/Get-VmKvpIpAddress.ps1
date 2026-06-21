@@ -23,7 +23,7 @@
 #       inspect $Vm.ipAddress itself.
 #     - Stamping the result back onto a VM def via Add-Member when the
 #       caller wants reference-shared downstream access. Returning a
-#       plain string keeps the helper testable without object-identity
+#       plain string keeps the helper free of object-identity
 #       semantics.
 #
 #   -SwitchName is the multi-NIC discriminator. Router VMs have two

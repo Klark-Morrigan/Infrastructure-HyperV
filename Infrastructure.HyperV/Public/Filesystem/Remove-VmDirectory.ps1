@@ -50,8 +50,7 @@
 # Hard-coded allowlist of parent prefixes under which Remove-VmDirectory
 # is willing to operate. The trailing slash is required so /optimist
 # does not match /opt. Extending this list is a security decision and
-# must be reviewed; the enumeration test in
-# Tests/Remove-VmDirectory.Tests.ps1 surfaces any change on the diff.
+# must be reviewed.
 $script:RemoveVmDirectory_AllowedParentPrefixes = @(
     '/opt/',
     '/var/lib/infra-provisioner/',
