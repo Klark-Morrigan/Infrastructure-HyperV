@@ -55,10 +55,10 @@ function New-VmSshClientWithJump {
     $hasRouter = $Vm.PSObject.Properties['_RouterVm'] -and $Vm._RouterVm
     if (-not $hasRouter) {
         $client = New-VmSshClient `
-                      -IpAddress $Vm.ipAddress `
-                      -Username  $Vm.username `
-                      -Password  $Vm.password `
-                      -Timeout   $Timeout
+                      -IpAddress         $Vm.ipAddress `
+                      -Username          $Vm.username `
+                      -Password          $Vm.password `
+                      -Timeout           $Timeout `
 
         $session = [PSCustomObject]@{ Client = $client; Tunnel = $null }
         Add-Member -InputObject $session `
@@ -85,14 +85,12 @@ function New-VmSshClientWithJump {
     # -Port parameter; the workload listens on 22 inside its NIC, but
     # the local-forward endpoint is on an ephemeral host port.
     try {
-        $auth     = [Renci.SshNet.PasswordAuthenticationMethod]::new(
-            $Vm.username, $Vm.password)
-        $connInfo = [Renci.SshNet.ConnectionInfo]::new(
-            $tunnel.LocalHost, [int]$tunnel.LocalPort,
-            $Vm.username, @($auth))
-        $connInfo.Timeout = $Timeout
-        $client = [Renci.SshNet.SshClient]::new($connInfo)
-        $client.Connect()
+        $client = New-VmSshClient `
+                      -IpAddress         $tunnel.LocalHost `
+                      -Port              ([int]$tunnel.LocalPort) `
+                      -Username          $Vm.username `
+                      -Password          $Vm.password `
+                      -Timeout           $Timeout `
     }
     catch {
         # Tunnel survives until we know the client connect succeeded;
