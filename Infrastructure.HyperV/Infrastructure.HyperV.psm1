@@ -103,6 +103,13 @@
                                   through a jump tunnel because SSH.NET
                                   accepts the local socket before the
                                   workload has actually replied
+      - Test-VmSshCredential    : single-shot authentication probe; $true
+                                  if the password is accepted, $false if
+                                  definitively rejected, throws on a
+                                  transient/unreachable error. The auth-
+                                  level rung above Test-SshBanner - a
+                                  banner-reachable host can still have no
+                                  usable login
       - Test-VmSshPort          : single-shot TCP probe of an SSH port; the
                                   ICMP-ping replacement for callers that
                                   intend to SSH immediately afterwards
@@ -184,6 +191,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Public\Ssh\New-VmSshTunnel.ps1"
 . "$PSScriptRoot\Public\Ssh\New-VmSshClientWithJump.ps1"
 . "$PSScriptRoot\Public\Ssh\Test-SshBanner.ps1"
+. "$PSScriptRoot\Public\Ssh\Test-VmSshCredential.ps1"
 . "$PSScriptRoot\Public\Ssh\Test-VmSshPort.ps1"
 . "$PSScriptRoot\Public\Ssh\Wait-VmSshReady.ps1"
 
@@ -223,6 +231,7 @@ Export-ModuleMember -Function @(
     'Start-VmIfStopped',
     'Stop-VmProcessesUsingPath',
     'Test-SshBanner',
+    'Test-VmSshCredential',
     'Test-VmSshPort',
     'Wait-VmSshReady'
 )

@@ -45,6 +45,7 @@
         'Start-VmIfStopped',
         'Stop-VmProcessesUsingPath',
         'Test-SshBanner',
+        'Test-VmSshCredential',
         'Test-VmSshPort',
         'Wait-VmSshReady'
     )
