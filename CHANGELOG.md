@@ -12,6 +12,19 @@ history and the tag list.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-21
+
+### Added
+- `New-RetryingSshClientWrapper`: wraps an SSH client with reconnect-and-
+  retry on transient transport drops (the channel being reaped mid-command
+  by a NAT/firewall middlebox), via `Invoke-WithRetry`. The belt to
+  `New-VmSshClient`'s keepalive brace, now available to every consumer of
+  this module rather than re-implemented per repo.
+
+### Changed
+- `RequiredModules` now declares `Common.PowerShell` (>= 8.1.0), which
+  supplies the `Invoke-WithRetry` primitive the new wrapper uses.
+
 ## [1.1.0] - 2026-06-21
 
 ### Added

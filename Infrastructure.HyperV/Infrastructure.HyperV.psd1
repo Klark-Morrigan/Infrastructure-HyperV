@@ -1,5 +1,5 @@
 @{
-    ModuleVersion        = '1.1.0'
+    ModuleVersion        = '1.2.0'
     GUID                 = 'c4a9d3e2-8b1f-4d7a-9e3c-5f2b8a1d4c6e'
     Author               = 'Klark Morrigan'
     Description          = 'Hyper-V VM utilities (SSH, host file server) for infrastructure repos.'
