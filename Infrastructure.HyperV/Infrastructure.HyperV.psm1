@@ -179,6 +179,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\Public\Processes\Stop-VmProcessesUsingPath.ps1"
 
 . "$PSScriptRoot\Public\Ssh\Invoke-SshClientCommand.ps1"
+. "$PSScriptRoot\Public\Ssh\New-RetryingSshClientWrapper.ps1"
 . "$PSScriptRoot\Public\Ssh\New-VmSshClient.ps1"
 . "$PSScriptRoot\Public\Ssh\New-VmSshTunnel.ps1"
 . "$PSScriptRoot\Public\Ssh\New-VmSshClientWithJump.ps1"
@@ -209,6 +210,7 @@ Export-ModuleMember -Function @(
     'Get-VmSwitchHostIp',
     'Invoke-SshClientCommand',
     'Invoke-WithVmFileServer',
+    'New-RetryingSshClientWrapper',
     'New-VmSshClient',
     'New-VmSshClientWithJump',
     'New-VmSshTunnel',

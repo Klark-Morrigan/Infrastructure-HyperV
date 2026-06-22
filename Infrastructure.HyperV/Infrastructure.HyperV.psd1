@@ -6,6 +6,16 @@
     PowerShellVersion    = '7.0'
     CompatiblePSEditions = @('Core')
     RootModule        = 'Infrastructure.HyperV.psm1'
+    # RequiredModules declares load-time dependencies so consumers do not
+    # have to Import-Module them by hand. Common.PowerShell supplies
+    # Invoke-WithRetry, which New-RetryingSshClientWrapper uses for its
+    # reconnect-and-retry loop. Floor 8.1.0 matches the ecosystem-wide pin.
+    RequiredModules = @(
+        @{
+            ModuleName    = 'Common.PowerShell'
+            ModuleVersion = '8.1.0'
+        }
+    )
     # FunctionsToExport is module discovery metadata: used by
     # Get-Module -ListAvailable, Find-Module, and PSGallery without loading
     # the module. It does NOT control what is callable at runtime - that is
@@ -23,6 +33,7 @@
         'Get-VmSwitchHostIp',
         'Invoke-SshClientCommand',
         'Invoke-WithVmFileServer',
+        'New-RetryingSshClientWrapper',
         'New-VmSshClient',
         'New-VmSshClientWithJump',
         'New-VmSshTunnel',
